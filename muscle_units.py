@@ -195,6 +195,28 @@ class MuscleJoint(object):
 
             cmds.setAttr("{0}.translateY".format(self.muscleTip), restLength)
 
+    @classmethod
+    def createFVromAtttachObj(cls, muscleName, originAttachObj, insertionAttachObj,
+                              compressionFactor=1.0, stretchFactor=1.0,
+                              stretchOffset=None, compressionOffset=None):
+        originPos = om.MVector(cmds.xform(originAttachObj, translation=True, ws=True, query=True))
+        insertionPos = om.MVector(cmds.xform(insertionAttachObj, translation=True, ws=True, query=True))
+
+        muscleLength = om.MVector(insertionPos - originPos).length()
+        muscleJointGrp = cls(muscleName, muscleLength, compressionFactor, stretchFactor,
+                             stretchOffset=stretchOffset, compressionOffset = compressionOffset)
+
+        muscleJointGrp.originAttachObj = originAttachObj
+        muscleJointGrp.insertionAttachObj = insertionAttachObj
+
+        cmds.delete(cmds.pointConstraint(originAttachObj, muscleJointGrp.originLoc, weight=1, mo=False))
+        cmds.delete(cmds.pointConstraint(insertionAttachObj, muscleJointGrp.insertionLoc, weight=1, mo=False))
+        cmds.parent(muscleJointGrp.muscleOrigin, originAttachObj)
+        cmds.parent(muscleJointGrp.originLoc, originAttachObj)
+        cmds.parent(muscleJointGrp.muscleInsertion, insertionAttachObj)
+        cmds.parent(muscleJointGrp.insertionLoc, insertionAttachObj)
+        return muscleJointGrp
+
 
 
 
