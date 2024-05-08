@@ -1,5 +1,6 @@
 import maya.cmds as cmds
 import maya.api.OpenMaya as om
+import math
 
 
 def createJnt(jointName, parent=None, radius=1.0, **kwargs):
@@ -15,9 +16,10 @@ def createJnt(jointName, parent=None, radius=1.0, **kwargs):
 
 
 class MuscleJoint(object):
-    def __init__(self, muscleName, muscleLength,
-                       compressionFactor, stretchFactor,
-                       stretchOffset=None, compressionOffset=None):
+
+    def __init__(self, muscleName, muscleLength,compressionFactor, stretchFactor,
+                 stretchOffset=None, compressionOffset=None):
+
         self.muscleName = muscleName
         self.compressionFactor = compressionFactor
         self.stretchFactor = stretchFactor
@@ -69,8 +71,6 @@ class MuscleJoint(object):
 
         self.addSDK()
 
-
-
     def edit(self):
 
         def createSpaceLocator(scaleValue, **kwargs):
@@ -117,10 +117,94 @@ class MuscleJoint(object):
         self.ptConstraintsTmp.append(cmds.pointConstraint(self.centerLoc, self.muscleDriver, mo=False, w=True)[0])
 
     def update(self):
-        pass
+
+        for ptConstraintsTmp in self.ptConstraintsTmp:
+            if cmds.objExists(ptConstraintsTmp):
+                cmds.delete(ptConstraintsTmp)
+
+        for loc in [self.originLoc, self.insertionLoc, self.centerLoc]:
+            if cmds.objExists(loc):
+                cmds.delete(loc)
+
+        cmds.setAttr("{0}.overrideEnabled".format(self.muscleOrigin), 0)
+        cmds.setAttr("{0}.overrideDisplayType".format(self.muscleOrigin), 0)
+        cmds.setAttr("{0}.overrideEnabled".format(self.muscleInsertion), 0)
+        cmds.setAttr("{0}.overrideDisplayType".format(self.muscleInsertion), 0)
+
+        cmds.delete(self.mainAimConstraint)
+
+        self.mainPointConstraint = cmds.pointConstraint(self.muscleBase, self.muscleTip, self.muscleDriver,
+                                                        mo=False, weight=1)
+
+        cmds.delete(cmds.aimConstraint(self.muscleInsertion, self.muscleOrigin,
+                                       aimVector=[0, 1, 0], upVector=[1, 0, 0],
+                                       worldUptype="scene", offset=[0, 0, 0], weight=1))
+
+        self.mainAimConstraint = cmds.aimConstraint(self.muscleInsertion, self.muscleBase,
+                                                    aimVector=[0, 1, 0], upVector=[1, 0, 0],
+                                                    worldUptype="objectrotation", worldUpObject=self.muscleOrigin,
+                                                    worldUpVector=[1, 0, 0])
+
+        animCurveNodes = cmds.ls(cmds.listConnections(self.JOmuscle, s=True, d=False),type=("animCurveUU", "animCurveUL"))
+        cmds.delete(animCurveNodes)
+        self.addSDK()
 
     def addSDK(self, stretchOffset=None, compressionOffset=None):
-        pass
+        xzSquashScale = math.sqrt(1.0 / self.compressionFactor)
+        xzStretchScale = math.sqrt(1.0 / self.stretchFactor)
+
+        if stretchOffset is None:
+            stretchOffset = [0.0, 0.0, 0.0]
+        if compressionOffset is None:
+            compressionOffset = [0.0, 0.0, 0.0]
+
+        restLength = cmds.getAttr("{0}.translateY".format(self.muscleTip))
+
+        for index, axis in enumerate("XYZ"):
+
+            cmds.setAttr("{0}.scale{1}".format(self.JOmuscle, axis), 1.0)
+            cmds.setAttr("{0}.translate{1}".format(self.JOmuscle, axis), 0.0)
+            cmds.setDrivenKeyframe("{0}.scale{1}".format(self.JOmuscle, axis),
+                                   currentDriver="{0}.translateY".format(self.muscleTip))
+            cmds.setDrivenKeyframe("{0}.translate{1}".format(self.JOmuscle, axis),
+                                   currentDriver="{0}.translateY".format(self.muscleTip))
+
+            cmds.setAttr("{0}.translateY".format(self.muscleTip), restLength * self.stretchFactor)
+            if axis == "Y":
+                cmds.setAttr("{0}.scale{1}".format(self.JOmuscle, axis), self.stretchFactor)
+            else:
+                cmds.setAttr("{0}.scale{1}".format(self.JOmuscle, axis), xzStretchScale)
+                cmds.setAttr("{0}.translate{1}".format(self.JOmuscle, axis), stretchOffset[index])
+
+            cmds.setDrivenKeyframe("{0}.scale{1}".format(self.JOmuscle, axis),
+                                   curreentDriver="{0}.translateY".format(self.muscleTip))
+            cmds.setDrivenKeyframe("{0}.translate{1}".format(self.JOmuscle, axis),
+                                   curreentDriver="{0}.translateY".format(self.muscleTip))
+
+            cmds.setAttr("{0}.translateY".format(self.muscleTip), restLength * self.compressionFactor)
+            if axis == "Y":
+                cmds.setAttr("{0}.scale{1}".format(self.JOmuscle, axis), self.compressionFactor)
+            else:
+                cmds.setAttr("{0}.scale{1}".format(self.JOmuscle, axis), xzSquashScale)
+                cmds.setAttr("{0}.translate{1}".format(self.JOmuscle, axis), compressionOffset[index])
+
+            cmds.setDrivenKeyframe("{0}.scale{1}".format(self.JOmuscle, axis),
+                                   curreentDriver="{0}.translateY".format(self.muscleTip))
+            cmds.setDrivenKeyframe("{0}.translate{1}".format(self.JOmuscle, axis),
+                                   curreentDriver="{0}.translateY".format(self.muscleTip))
+
+            cmds.setAttr("{0}.translateY".format(self.muscleTip), restLength)
+
+
+
+
+
+
+
+
+
+
+
 
 
 
