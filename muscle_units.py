@@ -134,18 +134,18 @@ class MuscleJoint(object):
         cmds.delete(self.mainAimConstraint)
 
         self.mainPointConstraint = cmds.pointConstraint(self.muscleBase, self.muscleTip, self.muscleDriver,
-                                                        mo=False, weight=1)
+                                                        mo=True, weight=1)
 
         cmds.delete(cmds.aimConstraint(self.muscleInsertion, self.muscleOrigin,
                                        aimVector=[0, 1, 0], upVector=[1, 0, 0],
-                                       worldUptype="scene", offset=[0, 0, 0], weight=1))
+                                       worldUpType="scene", offset=[0, 0, 0], weight=1))
 
         self.mainAimConstraint = cmds.aimConstraint(self.muscleInsertion, self.muscleBase,
                                                     aimVector=[0, 1, 0], upVector=[1, 0, 0],
-                                                    worldUptype="objectrotation", worldUpObject=self.muscleOrigin,
+                                                    worldUpType="objectrotation", worldUpObject=self.muscleOrigin,
                                                     worldUpVector=[1, 0, 0])
 
-        animCurveNodes = cmds.ls(cmds.listConnections(self.JOmuscle, s=True, d=False),type=("animCurveUU", "animCurveUL"))
+        animCurveNodes = cmds.ls(cmds.listConnections(self.JOmuscle, s=True, d=False), type=("animCurveUU", "animCurveUL"))
         cmds.delete(animCurveNodes)
         self.addSDK()
 
@@ -177,9 +177,9 @@ class MuscleJoint(object):
                 cmds.setAttr("{0}.translate{1}".format(self.JOmuscle, axis), stretchOffset[index])
 
             cmds.setDrivenKeyframe("{0}.scale{1}".format(self.JOmuscle, axis),
-                                   curreentDriver="{0}.translateY".format(self.muscleTip))
+                                   currentDriver="{0}.translateY".format(self.muscleTip))
             cmds.setDrivenKeyframe("{0}.translate{1}".format(self.JOmuscle, axis),
-                                   curreentDriver="{0}.translateY".format(self.muscleTip))
+                                   currentDriver="{0}.translateY".format(self.muscleTip))
 
             cmds.setAttr("{0}.translateY".format(self.muscleTip), restLength * self.compressionFactor)
             if axis == "Y":
@@ -189,9 +189,9 @@ class MuscleJoint(object):
                 cmds.setAttr("{0}.translate{1}".format(self.JOmuscle, axis), compressionOffset[index])
 
             cmds.setDrivenKeyframe("{0}.scale{1}".format(self.JOmuscle, axis),
-                                   curreentDriver="{0}.translateY".format(self.muscleTip))
+                                   currentDriver="{0}.translateY".format(self.muscleTip))
             cmds.setDrivenKeyframe("{0}.translate{1}".format(self.JOmuscle, axis),
-                                   curreentDriver="{0}.translateY".format(self.muscleTip))
+                                   currentDriver="{0}.translateY".format(self.muscleTip))
 
             cmds.setAttr("{0}.translateY".format(self.muscleTip), restLength)
 
