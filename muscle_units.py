@@ -195,6 +195,16 @@ class MuscleJoint(object):
 
             cmds.setAttr("{0}.translateY".format(self.muscleTip), restLength)
 
+    def delete(self):
+        self.update()
+        if cmds.objExists(self.muscleOrigin):
+            cmds.delete(self.muscleOrigin)
+        if cmds.objExists(self.muscleInsertion):
+            cmds.delete(self.muscleInsertion)
+        for node in self.muscleNodes:
+            if cmds.objExists(node):
+                cmds.delete(node)
+
     @classmethod
     def createFVromAtttachObj(cls, muscleName, originAttachObj, insertionAttachObj,
                               compressionFactor=1.0, stretchFactor=1.0,
@@ -216,6 +226,53 @@ class MuscleJoint(object):
         cmds.parent(muscleJointGrp.muscleInsertion, insertionAttachObj)
         cmds.parent(muscleJointGrp.insertionLoc, insertionAttachObj)
         return muscleJointGrp
+
+
+def mirror(muscleJointGrp, newMuscleName, muscleOrigin, muscleInsertion, mirrorAxis="x"):
+    if not isinstance(muscleJointGrp, MuscleJoint):
+        return
+    originPos = om.MVector(cmds.xform(muscleJointGrp.muscleOrigin, translation=True, ws=True, query=True))
+    insertionPos = om.MVector(cmds.xform(muscleJointGrp.muscleInsertion, translation=True, ws=True, query=True))
+    centerPos = om.MVector(cmds.xform(muscleJointGrp.muscleDriver, translation=True, ws=True, query=True))
+
+    if mirrorAxis =="x":
+        mirrorOriginPos = om.MVector(-originPos.x, originPos.y, originPos.z)
+        mirrorInsertionPos = om.MVector(-insertionPos.x, insertionPos.y, insertionPos.z)
+        mirrorCenterPos = om.MVector(-centerPos.x, centerPos.y, centerPos.z)
+    elif mirrorAxis =="y":
+        mirrorOriginPos = om.MVector(originPos.x, -originPos.y, originPos.z)
+        mirrorInsertionPos = om.MVector(insertionPos.x, -insertionPos.y, insertionPos.z)
+        mirrorCenterPos = om.MVector(centerPos.x, -centerPos.y, centerPos.z)
+    elif mirrorAxis =="z":
+        mirrorOriginPos = om.MVector(originPos.x, originPos.y, -originPos.z)
+        mirrorInsertionPos = om.MVector(insertionPos.x, insertionPos.y, -insertionPos.z)
+        mirrorCenterPos = om.MVector(centerPos.x, centerPos.y, -centerPos.z)
+    else:
+        raise  RuntimeError("Invalid axis, should be in 'xyz'")
+
+    muscleLength = om.MVector(insertionPos - originPos).length()
+
+    mirrorMuscleGrp = MuscleJoint(newMuscleName, muscleLength,
+                                  muscleJointGrp.compressionFactor, muscleJointGrp.stretchFactor,
+                                  muscleJointGrp.stretchOffset, muscleJointGrp.compressionOffset)
+    cmds.xform(mirrorMuscleGrp.originLoc, t=mirrorOriginPos, worldSpace=True)
+    cmds.xform(mirrorMuscleGrp.insertionLoc, t=mirrorInsertionPos, worldSpace=True)
+    cmds.xform(mirrorMuscleGrp.centerLoc, t=mirrorCenterPos, worldSpace=True)
+
+    cmds.parent(mirrorMuscleGrp.muscleOrigin, muscleOrigin)
+    cmds.parent(mirrorMuscleGrp.originLoc, muscleOrigin)
+    cmds.parent(mirrorMuscleGrp.muscleInsertion, muscleInsertion)
+    cmds.parent(mirrorMuscleGrp.insertionLoc, muscleInsertion)
+
+    return mirrorMuscleGrp
+
+
+
+
+
+
+
+
 
 
 
