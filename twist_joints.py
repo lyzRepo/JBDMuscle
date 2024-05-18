@@ -9,7 +9,7 @@ def CopyJoint(inputJoint, group=None, name="copy"):
     return copyJoint
 
 
-def forArmTwist(lowerArm=None, wrist=None, jointCount=3):
+def forArmTwist(lowerArm=None, wrist=None, jointCount=3, aimVec=1):
 
     elbowTwistBaseJoint = CopyJoint(lowerArm, group=lowerArm, name="TwistBase")
     elbowTwistValueJoint = CopyJoint(elbowTwistBaseJoint, group=lowerArm, name="TwistValue")
@@ -23,11 +23,11 @@ def forArmTwist(lowerArm=None, wrist=None, jointCount=3):
         cmds.setAttr("{0}.{1}W1".format(orCons, elbowTwistValueJoint), 1 / jointCount * i)
         cmds.setAttr("{0}.interpType".format(orCons), 2)
 
-    cmds.aimConstraint(wrist, elbowTwistValueJoint, aimVector=[0, 1, 0], upVector=[0, 0, 1],
+    cmds.aimConstraint(wrist, elbowTwistValueJoint, aimVector=[0, aimVec, 0], upVector=[0, 0, 1],
                        worldUpType="objectrotation", worldUpObject=wrist, worldUpVector=[0, 0, 1])
 
 
-def upperArmTwist(upperArm=None, lowerArm=None, jointCount=3):
+def upperArmTwist(upperArm=None, lowerArm=None, jointCount=3, aimVec=1, upVec=-1):
 
     armLength = cmds.getAttr("{0}.ty".format(lowerArm))
     upperArmCounterTwist = CopyJoint(upperArm, group=upperArm, name="CounterTwist")
@@ -52,9 +52,9 @@ def upperArmTwist(upperArm=None, lowerArm=None, jointCount=3):
 
         cmds.setAttr("{0}.interpType".format(orCons), 2)
 
-    cmds.aimConstraint(lowerArm, upperArmCounterTwist, aimVector=[0, 1, 0], upVector=[-1, 0, 0],
+    cmds.aimConstraint(lowerArm, upperArmCounterTwist, aimVector=[0, aimVec, 0], upVector=[upVec, 0, 0],
                        worldUpType="object", worldUpObject=upperArmTwistUpJoint)
-    cmds.aimConstraint(lowerArm, upperArmTwistValueJoint, aimVector=[0, 1, 0], upVector=[0, 0, 1],
+    cmds.aimConstraint(lowerArm, upperArmTwistValueJoint, aimVector=[0, aimVec, 0], upVector=[0, 0, 1],
                        worldUpType="objectrotation", worldUpObject=upperArm, worldUpVector=[0, 0, 1])
 
     return upperArmTwistUpJoint
