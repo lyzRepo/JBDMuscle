@@ -25,6 +25,7 @@ def createMuscleUnit(muscleName, originJoint, originEndJoint, insertionJoint, in
 
 
 class TrapeziusGroup(object):
+
     def __init__(self, muscleName, back2Joint, clavicleJoint, acromionJoint):
         self.muscleName = muscleName
         self.back2Joint = back2Joint
@@ -53,6 +54,7 @@ class TrapeziusGroup(object):
     def trapeziusBuild(self):
         for trapPart in self.trapeziusGroup:
             trapPart.update()
+
         originalAimCons = cmds.listRelatives(self.trapeziusA.muscleBase, type="aimConstraint")[0]
         if originalAimCons:
             cmds.delete(originalAimCons)
@@ -68,7 +70,6 @@ class TrapeziusGroup(object):
 
         self.trapCParentCons = cmds.parentConstraint(self.back2Joint, self.back3Joint, self.trapeziusC.muscleOrigin,
                                                      mo=True, weight=True)
-
         self.trapConstraints = [self.trapAParentCons, self.trapCParentCons]
 
     def trapeziusEdit(self):
@@ -84,3 +85,36 @@ class TrapeziusGroup(object):
                 cmds.delete(i)
         for i in self.trapeziusGroup:
             i.delete()
+
+
+def trapeziusMirror(muscleGrp, back2Joint, clavicleJoint, acromionJoint, mirrorAxis="x", side="L", prefix="R"):
+    if not isinstance(muscleGrp, TrapeziusGroup):
+        return
+    if side == "R":
+        prefix = "L"
+
+    locPosList = []
+    for muscle, i in zip(muscleGrp.trapeziusGroup, "ABC"):
+        tempMuscle = mu.mirror(muscleJointGrp=muscle,
+                               newMuscleName="{0}_trapezius{1}".format(prefix, i),
+                               muscleOrigin=muscle.originAttachObj,
+                               muscleInsertion=muscle.insertionAttachObj.replace(side + "_", prefix + "_"),
+                               mirrorAxis=mirrorAxis)
+
+        originPos = cmds.xform(tempMuscle.originLoc, t=True, q=True)
+        insertionPos = cmds.xform(tempMuscle.insertionLoc, t=True, q=True)
+        centerPos = cmds.xform(tempMuscle.centerLoc, t=True, q=True)
+        tempPosList = [originPos, insertionPos, centerPos]
+        locPosList.append(tempPosList)
+        tempMuscle.delete()
+
+    mirrorInstance = TrapeziusGroup(muscleName="{0}_trapezius".format(prefix), back2Joint=back2Joint,
+                                    clavicleJoint=clavicleJoint, acromionJoint=acromionJoint)
+    for muscle, pos in zip(mirrorInstance.trapeziusGroup, locPosList):
+        cmds.xform(muscle.originLoc, translation=pos[0])
+        cmds.xform(muscle.insertionLoc, translation=pos[1])
+        cmds.xform(muscle.centerLoc, translation=pos[2])
+    return mirrorInstance
+
+
+
