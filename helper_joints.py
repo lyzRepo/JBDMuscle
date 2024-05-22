@@ -15,7 +15,6 @@ def generateScapulaLocs(shoulderJo, back3Jo, neckJo, side="L"):
     cmds.delete(cmds.pointConstraint(back3Jo, tipLoc, skip=("x","z"), mo=False, w=True))
 
 
-
 def createScapulaJoints(clavicle, neckJoint, backJoint, oj="yzx", sao="zup", upVec=1):
     loctors = cmds.ls(sl=True)
     locList = [loc.split("Loc")[0] for loc in loctors]
