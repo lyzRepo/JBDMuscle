@@ -188,3 +188,7 @@ def LatsMirror(muscleGrp, back1Joint, armJoint, scapulaJoint, trapC, mirrorAxis=
         cmds.xform(muscle.insertionLoc, translation=pos[1])
         cmds.xform(muscle.centerLoc, translation=pos[2])
     return mirrorInstance
+
+
+class ShoulderGroup(object):
+    def __init__(self, muscleName, clavicleJoint, armJoint, acromionJoint, trapC):
