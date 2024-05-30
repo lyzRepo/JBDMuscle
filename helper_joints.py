@@ -12,7 +12,7 @@ def generateScapulaLocs(shoulderJo, back3Jo, neckJo, side="L"):
 
     tipLoc = cmds.spaceLocator(name="{0}_tipLoc".format(side))[0]
     cmds.delete(cmds.pointConstraint(acromionLoc, scapulaLoc, tipLoc, mo=False, w=True))
-    cmds.delete(cmds.pointConstraint(back3Jo, tipLoc, skip=("x","z"), mo=False, w=True))
+    cmds.delete(cmds.pointConstraint(back3Jo, tipLoc, skip=("x", "z"), mo=False, w=True))
 
 
 def createScapulaJoints(clavicle, neckJoint, backJoint, oj="yzx", sao="zup", upVec=1):
@@ -32,4 +32,3 @@ def createScapulaJoints(clavicle, neckJoint, backJoint, oj="yzx", sao="zup", upV
     cmds.aimConstraint(neckJoint, boneLis[0], aimVector=[0, 1, 0], upVector=[upVec, 0, 0],
                        worldUpType="objectrotation", worldUpVector=[0, 1, 0], worldUpObject=backJoint, mo=True,
                        weight=True)
-

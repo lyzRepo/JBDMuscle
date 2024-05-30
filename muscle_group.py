@@ -43,9 +43,30 @@ def getMirrorPos(muscleGrp, mirrorAxis="x", size=3, side="L", prefix="R"):
     return locPosList
 
 
-class TrapeziusGroup(object):
+class BipedMuscles(object):
+    def __init__(self):
+        self.muscleUnitGroup = []
+        self.muscleCons = []
+
+    def delete(self):
+        if self.muscleCons:
+            for i in self.muscleCons:
+                cmds.delete(i)
+        for i in self.muscleUnitGroup:
+            i.delete()
+
+    def edit(self):
+        if self.muscleCons:
+            for i in self.muscleCons:
+                cmds.delete(i)
+        for i in self.muscleUnitGroup:
+            i.edit()
+
+    
+class TrapeziusGroup(BipedMuscles):
 
     def __init__(self, muscleName, back2Joint, clavicleJoint, acromionJoint):
+        super().__init__()
         self.muscleName = muscleName
         self.back2Joint = back2Joint
         self.back3Joint = cmds.listRelatives(self.back2Joint, children=True)[0]
@@ -89,21 +110,7 @@ class TrapeziusGroup(object):
 
         self.trapCParentCons = cmds.parentConstraint(self.back2Joint, self.back3Joint, self.trapeziusC.muscleOrigin,
                                                      mo=True, weight=True)
-        self.trapConstraints = [self.trapAParentCons, self.trapCParentCons]
-
-    def trapeziusEdit(self):
-        if self.trapConstraints:
-            for i in self.trapConstraints:
-                cmds.delete(i)
-        for trapPart in self.muscleUnitGroup:
-            trapPart.edit()
-
-    def trapeziusDelete(self):
-        if self.trapConstraints:
-            for i in self.trapConstraints:
-                cmds.delete(i)
-        for i in self.muscleUnitGroup:
-            i.delete()
+        self.muscleCons = [self.trapAParentCons, self.trapCParentCons]
 
 
 def trapeziusMirror(muscleGrp, back2Joint, clavicleJoint, acromionJoint, mirrorAxis="x", side="L", prefix="R"):
@@ -111,7 +118,7 @@ def trapeziusMirror(muscleGrp, back2Joint, clavicleJoint, acromionJoint, mirrorA
         return
     if side == "R":
         prefix = "L"
-    mirrorPosList = getMirrorPos(muscleGrp=muscleGrp, mirrorAxis="x",
+    mirrorPosList = getMirrorPos(muscleGrp=muscleGrp, mirrorAxis=mirrorAxis,
                                  size=len(muscleGrp.muscleUnitGroup), side=side, prefix=prefix)
     mirrorInstance = TrapeziusGroup(muscleName="{0}_trapezius".format(prefix), back2Joint=back2Joint,
                                     clavicleJoint=clavicleJoint, acromionJoint=acromionJoint)
@@ -122,8 +129,9 @@ def trapeziusMirror(muscleGrp, back2Joint, clavicleJoint, acromionJoint, mirrorA
     return mirrorInstance
 
 
-class LatsGroup(object):
+class LatsGroup(BipedMuscles):
     def __init__(self, muscleName, back1Joint, armJoint, scapulaJoint, trapC):
+        super().__init__()
         self.muscleName = muscleName
         self.back1Joint = back1Joint
         self.back2Joint = cmds.listRelatives(self.back1Joint, children=True)[0]
@@ -157,21 +165,7 @@ class LatsGroup(object):
 
         self.latsAPointCos = cmds.pointConstraint(self.latsB.JOmuscle, self.trapC, self.latsA.muscleOffset,
                                                   mo=True, weight=True)
-        self.latsConstraints = [self.latsAPointCos, self.latsBPointCos]
-
-    def latsEdit(self):
-        if self.latsConstraints:
-            for i in self.latsConstraints:
-                cmds.delete(i)
-        for latsPart in self.muscleUnitGroup:
-            latsPart.edit()
-
-    def latsDelete(self):
-        if self.latsConstraints:
-            for i in self.latsConstraints:
-                cmds.delete(i)
-        for i in self.muscleUnitGroup:
-            i.delete()
+        self.muscleCons = [self.latsAPointCos, self.latsBPointCos]
 
 
 def LatsMirror(muscleGrp, back1Joint, armJoint, scapulaJoint, trapC, mirrorAxis="x", side="L", prefix="R"):
@@ -179,7 +173,7 @@ def LatsMirror(muscleGrp, back1Joint, armJoint, scapulaJoint, trapC, mirrorAxis=
         return
     if side == "R":
         prefix = "L"
-    mirrorPosList = getMirrorPos(muscleGrp=muscleGrp, mirrorAxis="x",
+    mirrorPosList = getMirrorPos(muscleGrp=muscleGrp, mirrorAxis=mirrorAxis,
                                  size=len(muscleGrp.muscleUnitGroup), side=side, prefix=prefix)
     mirrorInstance = LatsGroup(muscleName="{0}_lats".format(prefix), back1Joint=back1Joint,
                                armJoint=armJoint, scapulaJoint=scapulaJoint, trapC=trapC)
@@ -190,5 +184,11 @@ def LatsMirror(muscleGrp, back1Joint, armJoint, scapulaJoint, trapC, mirrorAxis=
     return mirrorInstance
 
 
-class ShoulderGroup(object):
-    def __init__(self, muscleName, clavicleJoint, armJoint, acromionJoint, trapC):
+class ShoulderGroup(BipedMuscles):
+    def __init__(self, muscleName, clavicleJoint, armJoint, acromionJoint):
+        super().__init__()
+        self.muscleName = muscleName
+        self.clavicleJoint = clavicleJoint
+        self.armJoint = armJoint
+        self.acrominonJoint = acromionJoint
+

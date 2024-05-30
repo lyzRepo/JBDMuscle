@@ -1,71 +1,132 @@
 import maya.cmds as cmds
+import maya.api.OpenMaya as om
 
-def CopyJoint(inputJoint, group=None, name="copy"):
+
+def duplicateJoint(inputJoint, group=None, name="copy"):
+    """
+    copy joint, match joint pos and parent to original joint
+    :param inputJoint: original joint
+    :param group: name prefix
+    :param name: joint name
+    :return: joint name as str
+    """
+    # create joint
     cmds.select(clear=True)
-    copyJoint = cmds.joint(n="{0}_{1}".format(group, name), position=(0, 0, 0))
-    cmds.delete(cmds.parentConstraint(inputJoint, copyJoint, mo=False, weight=1))
+    copyJoint = cmds.joint(name="{0}_{1}".format(group, name), position=(0, 0, 0))
+    # match transformation
+    cmds.matchTransform(copyJoint, inputJoint)
     cmds.parent(copyJoint, inputJoint)
+    # freeze rotation to jointOrient
     cmds.makeIdentity(copyJoint, apply=True)
     return copyJoint
 
 
-def forArmTwist(lowerArm=None, wrist=None, jointCount=3, aimVec=1):
+def getLength(startJoint, endJoint):
+    elbowPos = om.MVector(cmds.xform(startJoint, translation=True, ws=True, q=True))
+    wristPos = om.MVector(cmds.xform(endJoint, translation=True, ws=True, q=True))
+    armLength = (elbowPos - wristPos).length()
+    return armLength
 
-    elbowTwistBaseJoint = CopyJoint(lowerArm, group=lowerArm, name="TwistBase")
-    elbowTwistValueJoint = CopyJoint(elbowTwistBaseJoint, group=lowerArm, name="TwistValue")
-    armLength = cmds.getAttr("{0}.ty".format(wrist))
+
+def forArmTwist(lowerArm=None, wrist=None, jointCount=3, aimVec=None, upVector=None):
+    """
+    :param lowerArm: elbow joint
+    :param wrist: wrist joint
+    :param jointCount: twist joint count
+    :param aimVec: joint orient main axis
+    :param upVector: wrist side axis direction
+    """
+    # default aim axis "y", up axis "z"
+    if aimVec is None:
+        aimVec = [0, 1, 0]
+    if upVector is None:
+        upVector = [0, 0, 1]
+    # duplicate two joints and get length
+    elbowTwistBaseJoint = duplicateJoint(lowerArm, group=lowerArm, name="TwistBase")
+    elbowTwistValueJoint = duplicateJoint(elbowTwistBaseJoint, group=lowerArm, name="TwistValue")
+    armLength = getLength(lowerArm, wrist)
 
     for i in range(1, jointCount + 1):
-        twistJoints = CopyJoint(lowerArm, group=lowerArm, name="Twist{0}".format(i))
-        cmds.setAttr("{0}.ty".format(twistJoints), armLength / jointCount * i)
+        # copy joint and set offset value
+        twistJoints = duplicateJoint(lowerArm, group=lowerArm, name="Twist{0}".format(i))
+        offset = armLength / jointCount * i
+        # transfer offset to aim vector and move
+        jointPos = [element * offset for element in aimVec]
+        cmds.xform(twistJoints, translation=jointPos)
+        # set orientConstraint and weight percent
         orCons = cmds.orientConstraint(elbowTwistBaseJoint, elbowTwistValueJoint, twistJoints, mo=False, weight=1)[0]
         cmds.setAttr("{0}.{1}W0".format(orCons, elbowTwistBaseJoint), 1 / jointCount * (jointCount - i))
         cmds.setAttr("{0}.{1}W1".format(orCons, elbowTwistValueJoint), 1 / jointCount * i)
+        # change constraint interp type to shortest
         cmds.setAttr("{0}.interpType".format(orCons), 2)
+    # aimConstraint twistValueJoint by wrist to get wrist twist value
+    cmds.aimConstraint(wrist, elbowTwistValueJoint, aimVector=aimVec, upVector=upVector,
+                       worldUpType="objectrotation", worldUpObject=wrist, worldUpVector=upVector)
 
-    cmds.aimConstraint(wrist, elbowTwistValueJoint, aimVector=[0, aimVec, 0], upVector=[0, 0, 1],
-                       worldUpType="objectrotation", worldUpObject=wrist, worldUpVector=[0, 0, 1])
 
+def upperArmTwist(upperArm=None, lowerArm=None, jointCount=3, aimVec=None, upVector=None, jointUpVector=None):
+    """
+    :param upperArm: shoulder joint
+    :param lowerArm: elbow joint
+    :param jointCount: twist joint count
+    :param aimVec: joint main axis
+    :param jointUpVector: up joint offset axis
+    :param upVector:
+    """
+    # default aim axis "y", up axis "z"
+    if aimVec is None:
+        aimVec = [0, 1, 0]
+    if upVector is None:
+        upVector = [0, 0, 1]
+    if jointUpVector is None:
+        jointUpVector = [-1, 0, 0]
 
-def upperArmTwist(upperArm=None, lowerArm=None, jointCount=3, aimVec=1, upVec=-1):
-
-    armLength = cmds.getAttr("{0}.ty".format(lowerArm))
-    upperArmCounterTwist = CopyJoint(upperArm, group=upperArm, name="CounterTwist")
-    upperArmTwistUpJoint = CopyJoint(upperArm, group=upperArm, name="Up")
-    cmds.setAttr("{0}.tx".format(upperArmTwistUpJoint), -armLength / 3)
-    clavicleJoint = cmds.listRelatives(upperArm, p=True)[0]
+    upperArmCounterTwist = duplicateJoint(upperArm, group=upperArm, name="CounterTwist")
+    upperArmTwistUpJoint = duplicateJoint(upperArm, group=upperArm, name="Up")
+    armLength = getLength(upperArm, lowerArm)
+    upJointPos = [element * armLength/3 for element in jointUpVector]
+    cmds.xform(upperArmTwistUpJoint, translation=upJointPos)
+    clavicleJoint = cmds.listRelatives(upperArm, parent=True)[0]
     cmds.parent(upperArmTwistUpJoint, clavicleJoint)
 
-    upperArmTwistBaseJoint = CopyJoint(upperArmCounterTwist, group=upperArm, name="TwistBase")
-    upperArmTwistValueJoint = CopyJoint(upperArmCounterTwist, group=upperArm, name="TwistValue")
+    upperArmTwistBaseJoint = duplicateJoint(upperArmCounterTwist, group=upperArm, name="TwistBase")
+    upperArmTwistValueJoint = duplicateJoint(upperArmCounterTwist, group=upperArm, name="TwistValue")
 
     for i in range(0, jointCount):
-        twistJoints = CopyJoint(upperArm, group=upperArm, name="Twist{0}".format(i + 1))
-        cmds.setAttr("{0}.ty".format(twistJoints), armLength / jointCount * i)
+        twistJoints = duplicateJoint(upperArm, group=upperArm, name="Twist{0}".format(i + 1))
+        offset = armLength / jointCount * i
+        jointPos = [element * offset for element in aimVec]
+        cmds.xform(twistJoints, translation=jointPos)
+
         orCons = cmds.orientConstraint(upperArmTwistBaseJoint, upperArmTwistValueJoint, twistJoints, mo=False, weight=1)[0]
         if i == 0:
             cmds.setAttr("{0}.{1}W0".format(orCons, upperArmTwistBaseJoint), 0.9)
             cmds.setAttr("{0}.{1}W1".format(orCons, upperArmTwistValueJoint), 0.1)
         else:
-            cmds.setAttr("{0}.{1}W0".format(orCons, upperArmTwistBaseJoint), 1 / jointCount * (jointCount - i))
+            cmds.setAttr("{0}.{1}W0".format(orCons, upperArmTwistBaseJoint), 1 / jointCount * (jointCount-i))
             cmds.setAttr("{0}.{1}W1".format(orCons, upperArmTwistValueJoint), 1 / jointCount * i)
 
         cmds.setAttr("{0}.interpType".format(orCons), 2)
 
-    cmds.aimConstraint(lowerArm, upperArmCounterTwist, aimVector=[0, aimVec, 0], upVector=[upVec, 0, 0],
+    cmds.aimConstraint(lowerArm, upperArmCounterTwist, aimVector=aimVec, upVector=jointUpVector,
                        worldUpType="object", worldUpObject=upperArmTwistUpJoint)
-    cmds.aimConstraint(lowerArm, upperArmTwistValueJoint, aimVector=[0, aimVec, 0], upVector=[0, 0, 1],
-                       worldUpType="objectrotation", worldUpObject=upperArm, worldUpVector=[0, 0, 1])
+    cmds.aimConstraint(lowerArm, upperArmTwistValueJoint, aimVector=aimVec, upVector=upVector,
+                       worldUpType="objectrotation", worldUpObject=upperArm, worldUpVector=upVector)
 
     return upperArmTwistUpJoint
 
 
-def shoulderCounterFilp(upperArm, lowerArm, armUpJoint, rotationAxis="z"):
+def shoulderCounterFilp(upperArm, lowerArm, armUpJoint, jointAxis, rotationAxis="z"):
+    # default aim axis "y", up axis "z"
+    if jointAxis is None:
+        jointAxis = [0, 1, 0]
+
     clavicleJo = cmds.listRelatives(upperArm, parent=True)[0]
 
-    jointDn = CopyJoint(upperArm, group=upperArm, name="Dn")
-    lengh = cmds.getAttr("{0}.ty".format(upperArm)) / 2
-    cmds.setAttr("{0}.ty".format(jointDn), lengh)
+    jointDn = duplicateJoint(upperArm, group=upperArm, name="Dn")
+    armLength = getLength(upperArm, lowerArm)
+    dnJointPos = [element * armLength/3 for element in jointAxis]
+    cmds.xform(jointDn, translation=dnJointPos)
 
     cmds.setAttr("{0}.r{1}".format(upperArm, rotationAxis), -90)
     cmds.parent(jointDn, clavicleJo)
@@ -90,21 +151,21 @@ def shoulderCounterFilp(upperArm, lowerArm, armUpJoint, rotationAxis="z"):
         cmds.setDrivenKeyframe("{0}.translate{1}".format(armUpJoint, axis),
                                currentDriver="{0}.outputX".format(DotNode))
 
-    cmds.setAttr("{0}.rz".format(upperArm), -90)
+    cmds.setAttr("{0}.r{1}".format(upperArm, rotationAxis), -90)
     tempPos = cmds.xform(posTempJoint, translation=True, ws=True, q=True)
     cmds.xform(armUpJoint, ws=True, translation=(tempPos[0], tempPos[1], tempPos[2]))
     for index, axis in enumerate("XYZ"):
         cmds.setDrivenKeyframe("{0}.translate{1}".format(armUpJoint, axis),
                                currentDriver="{0}.outputX".format(DotNode))
 
-    cmds.setAttr("{0}.rz".format(upperArm), 90)
+    cmds.setAttr("{0}.r{1}".format(upperArm, rotationAxis), 90)
     tempPos = cmds.xform(posTempJoint, translation=True, ws=True, q=True)
     cmds.xform(armUpJoint, ws=True, translation=(tempPos[0], tempPos[1], tempPos[2]))
     for index, axis in enumerate("XYZ"):
         cmds.setDrivenKeyframe("{0}.translate{1}".format(armUpJoint, axis),
                                currentDriver="{0}.outputX".format(DotNode))
 
-    cmds.setAttr("{0}.rz".format(upperArm), 0)
+    cmds.setAttr("{0}.r{1}".format(upperArm, rotationAxis), 0)
     cmds.delete(posTempJoint)
 
 
@@ -112,5 +173,3 @@ def autoCreate(upperArm, lowerArm, wrist, rotationAxis="z", jointCount=3):
     forArmTwist(lowerArm=lowerArm, wrist=wrist, jointCount=jointCount)
     createArmUpJoint = upperArmTwist(upperArm=upperArm, lowerArm=lowerArm, jointCount=jointCount)
     shoulderCounterFilp(upperArm=upperArm, lowerArm=lowerArm, armUpJoint=createArmUpJoint, rotationAxis=rotationAxis)
-
-
