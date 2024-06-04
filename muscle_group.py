@@ -3,10 +3,7 @@ import maya.api.OpenMaya as om
 from . import muscle_units as mu
 
 
-def moveJoints(startJoint, endJoint, moveObject, moveFactor=(1, 1)):
-    numerator, denominator = moveFactor
-    moveFactor = numerator / denominator
-
+def moveJoints(startJoint, endJoint, moveObject, moveFactor=1.0):
     startVector = om.MVector(cmds.xform(startJoint, translation=True, ws=True, q=True))
     endVector = om.MVector(cmds.xform(endJoint, translation=True, ws=True, q=True))
     finalPos = (endVector - startVector) * moveFactor + startVector
@@ -43,10 +40,29 @@ def getMirrorPos(muscleGrp, mirrorAxis="x", size=3, side="L", prefix="R"):
     return locPosList
 
 
+def mirrorMuscleGroup(muscleGrp, groupClass, muscleName, mirrorAxis="x", side="L", prefix="R", **kwargs):
+    if not isinstance(muscleGrp, groupClass):
+        return
+    if side == "R":
+        prefix = "L"
+    mirrorPosList = getMirrorPos(muscleGrp=muscleGrp, mirrorAxis=mirrorAxis,
+                                 size=len(muscleGrp.muscleUnitGroup), side=side, prefix=prefix)
+    mirrorInstance = groupClass(muscleName="{0}_{1}".format(prefix, muscleName), **kwargs)
+
+    for muscle, pos in zip(mirrorInstance.muscleUnitGroup, mirrorPosList):
+        cmds.xform(muscle.originLoc, translation=pos[0])
+        cmds.xform(muscle.insertionLoc, translation=pos[1])
+        cmds.xform(muscle.centerLoc, translation=pos[2])
+    return mirrorInstance
+
+
 class BipedMuscles(object):
     def __init__(self):
         self.muscleUnitGroup = []
         self.muscleCons = []
+
+    def build(self):
+        pass
 
     def delete(self):
         if self.muscleCons:
@@ -80,18 +96,18 @@ class TrapeziusGroup(BipedMuscles):
         self.trapeziusA = createMuscleUnit(muscleName=self.muscleName+"A",
                                            originJoint=self.neckJoint, originEndJoint=self.headJoint,
                                            insertionJoint=self.clavicleJoint, insertionEndJoint=self.shoulderJoint,
-                                           moveFactor=[(1, 2), (5, 6)])
+                                           moveFactor=[1/2.0, 5/6.0])
         self.trapeziusB = createMuscleUnit(muscleName=self.muscleName+"B",
                                            originJoint=self.back3Joint, originEndJoint=self.neckJoint,
                                            insertionJoint=self.acromionJoint, insertionEndJoint=self.scapulaJoint,
-                                           moveFactor=[(6, 8), (1, 4)])
+                                           moveFactor=[6/8.0, 1/4.0])
         self.trapeziusC = createMuscleUnit(muscleName=self.muscleName+"C",
                                            originJoint=self.back3Joint, originEndJoint=self.neckJoint,
                                            insertionJoint=self.acromionJoint, insertionEndJoint=self.scapulaJoint,
-                                           moveFactor=[(1, 8), (3, 4)])
+                                           moveFactor=[1/8.0, 3/4.0])
         self.muscleUnitGroup = [self.trapeziusA, self.trapeziusB, self.trapeziusC]
 
-    def trapeziusBuild(self):
+    def build(self):
         for trapPart in self.muscleUnitGroup:
             trapPart.update()
 
@@ -113,20 +129,10 @@ class TrapeziusGroup(BipedMuscles):
         self.muscleCons = [self.trapAParentCons, self.trapCParentCons]
 
 
-def trapeziusMirror(muscleGrp, back2Joint, clavicleJoint, acromionJoint, mirrorAxis="x", side="L", prefix="R"):
-    if not isinstance(muscleGrp, TrapeziusGroup):
-        return
-    if side == "R":
-        prefix = "L"
-    mirrorPosList = getMirrorPos(muscleGrp=muscleGrp, mirrorAxis=mirrorAxis,
-                                 size=len(muscleGrp.muscleUnitGroup), side=side, prefix=prefix)
-    mirrorInstance = TrapeziusGroup(muscleName="{0}_trapezius".format(prefix), back2Joint=back2Joint,
-                                    clavicleJoint=clavicleJoint, acromionJoint=acromionJoint)
-    for muscle, pos in zip(mirrorInstance.muscleUnitGroup, mirrorPosList):
-        cmds.xform(muscle.originLoc, translation=pos[0])
-        cmds.xform(muscle.insertionLoc, translation=pos[1])
-        cmds.xform(muscle.centerLoc, translation=pos[2])
-    return mirrorInstance
+def trapeMirror(muscleGrp, muscleName, back2Joint, clavicleJoint, acromionJoint, mirrorAxis="x", side="L", prefix="R"):
+    return mirrorMuscleGroup(muscleGrp=muscleGrp, groupClass=TrapeziusGroup, muscleName=muscleName,
+                             mirrorAxis=mirrorAxis, side=side, prefix=prefix,
+                             back2Joint=back2Joint, clavicleJoint=clavicleJoint, acromionJoint=acromionJoint)
 
 
 class LatsGroup(BipedMuscles):
@@ -145,50 +151,79 @@ class LatsGroup(BipedMuscles):
         self.latsA = createMuscleUnit(muscleName=self.muscleName+"A",
                                       originJoint=self.back2Joint, originEndJoint=self.back3Joint,
                                       insertionJoint=self.armJoint, insertionEndJoint=self.shoulderJoint,
-                                      moveFactor=[(1, 2), (1, 2)])
+                                      moveFactor=[1/2.0, 1/2.0])
         self.latsB = createMuscleUnit(muscleName=self.muscleName+"B",
                                       originJoint=self.back1Joint, originEndJoint=self.back2Joint,
                                       insertionJoint=self.armJoint, insertionEndJoint=self.shoulderJoint,
-                                      moveFactor=[(1, 10), (1, 2)])
+                                      moveFactor=[1/10.0, 1/2.0])
         self.latsC = createMuscleUnit(muscleName=self.muscleName+"C",
                                       originJoint=self.scapulaTipJoint, originEndJoint=self.scapulaJoint,
                                       insertionJoint=self.armJoint, insertionEndJoint=self.shoulderJoint,
-                                      moveFactor=[(1, 10), (1, 2)])
+                                      moveFactor=[1/10.0, 1/2.0])
         self.muscleUnitGroup = [self.latsA, self.latsB, self.latsC]
 
-    def latsBuild(self):
+    def build(self):
         for latsPart in self.muscleUnitGroup:
             latsPart.update()
 
         self.latsBPointCos = cmds.pointConstraint(self.back3Joint, self.latsB.muscleOffset,
                                                   mo=True, weight=True, skip="y")
-
         self.latsAPointCos = cmds.pointConstraint(self.latsB.JOmuscle, self.trapC, self.latsA.muscleOffset,
                                                   mo=True, weight=True)
         self.muscleCons = [self.latsAPointCos, self.latsBPointCos]
 
 
-def LatsMirror(muscleGrp, back1Joint, armJoint, scapulaJoint, trapC, mirrorAxis="x", side="L", prefix="R"):
-    if not isinstance(muscleGrp, LatsGroup):
-        return
-    if side == "R":
-        prefix = "L"
-    mirrorPosList = getMirrorPos(muscleGrp=muscleGrp, mirrorAxis=mirrorAxis,
-                                 size=len(muscleGrp.muscleUnitGroup), side=side, prefix=prefix)
-    mirrorInstance = LatsGroup(muscleName="{0}_lats".format(prefix), back1Joint=back1Joint,
-                               armJoint=armJoint, scapulaJoint=scapulaJoint, trapC=trapC)
-    for muscle, pos in zip(mirrorInstance.muscleUnitGroup, mirrorPosList):
-        cmds.xform(muscle.originLoc, translation=pos[0])
-        cmds.xform(muscle.insertionLoc, translation=pos[1])
-        cmds.xform(muscle.centerLoc, translation=pos[2])
-    return mirrorInstance
+def latsMirror(muscleGrp, muscleName, back1Joint, armJoint, scapulaJoint, trapC, mirrorAxis="x", side="L", prefix="R"):
+    return mirrorMuscleGroup(muscleGrp=muscleGrp, groupClass=LatsGroup, muscleName=muscleName,
+                             mirrorAxis=mirrorAxis, side=side, prefix=prefix,
+                             back1Joint=back1Joint, armJoint=armJoint, scapulaJoint=scapulaJoint, trapC=trapC)
 
 
-class ShoulderGroup(BipedMuscles):
-    def __init__(self, muscleName, clavicleJoint, armJoint, acromionJoint):
+class DeltoidGroup(BipedMuscles):
+    def __init__(self, muscleName, clavicleJoint, armJoint, twistJoint, shoulderJoint, acromionJoint, sacpulaJoint):
         super().__init__()
         self.muscleName = muscleName
         self.clavicleJoint = clavicleJoint
         self.armJoint = armJoint
+        self.twistJoint = twistJoint
         self.acrominonJoint = acromionJoint
+        self.sacpulaJoint = sacpulaJoint
+        self.shoulderJoint = shoulderJoint
+
+        self.deltoidA = createMuscleUnit(muscleName=self.muscleName+"A",
+                                         originJoint=self.clavicleJoint, originEndJoint=self.armJoint,
+                                         insertionJoint=self.twistJoint, insertionEndJoint=self.armJoint,
+                                         moveFactor=[5/6.0, 0.0])
+        self.deltoidB = createMuscleUnit(muscleName=self.muscleName+"B",
+                                         originJoint=self.acrominonJoint, originEndJoint=self.acrominonJoint,
+                                         insertionJoint=self.twistJoint, insertionEndJoint=self.armJoint,
+                                         moveFactor=[1.0, 0.0])
+        self.deltoidC = createMuscleUnit(muscleName=self.muscleName+"C",
+                                         originJoint=self.sacpulaJoint, originEndJoint=self.acrominonJoint,
+                                         insertionJoint=self.twistJoint, insertionEndJoint=self.armJoint,
+                                         moveFactor=[5/6.0, 0.0])
+        self.muscleUnitGroup = [self.deltoidA, self.deltoidB, self.deltoidC]
+
+    def build(self):
+        for deltoidPart in self.muscleUnitGroup:
+            deltoidPart.update()
+            cmds.delete(deltoidPart.mainAimConstraint)
+            deltoidPart.mainAimConstraint = cmds.aimConstraint(deltoidPart.muscleInsertion,
+                                                               deltoidPart.muscleBase, mo=True,
+                                                               aimVector=[0, 1, 0], upVector=[1, 0, 0],
+                                                               worldUpType="objectrotation",
+                                                               worldUpObject=self.shoulderJoint,
+                                                               worldUpVector=[1, 0, 0])
+        self.deltoidPointCons = cmds.pointConstraint(self.deltoidA.JOmuscle, self.deltoidC.JOmuscle,
+                                                     self.deltoidB.muscleOffset, mo=True, weight=1)
+
+        self.muscleCons = [self.deltoidPointCons]
+
+
+def deltoidMirror(muscleGrp, muscleName, clavicleJoint, armJoint, twistJoint, shoulderJoint, acromionJoint, sacpulaJoint,
+                  mirrorAxis="x", side="L", prefix="R"):
+    return mirrorMuscleGroup(muscleGrp=muscleGrp, groupClass=DeltoidGroup, muscleName=muscleName,
+                             mirrorAxis=mirrorAxis, side=side, prefix=prefix,
+                             clavicleJoint=clavicleJoint, armJoint=armJoint, twistJoint=twistJoint,
+                             shoulderJoint=shoulderJoint, acromionJoint=acromionJoint, sacpulaJoint=sacpulaJoint)
 
