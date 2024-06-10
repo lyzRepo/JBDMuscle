@@ -4,13 +4,13 @@ import maya.cmds as cmds
 def generateScapulaLocs(shoulderJo, back3Jo, neckJo, side="L"):
     shoulderPos = cmds.xform(shoulderJo, translation=True, ws=True, q=True)
 
-    acromionLoc = cmds.spaceLocator(name="{0}_AcromionLoc".format(side))[0]
+    acromionLoc = cmds.spaceLocator(name="{0}_acromionLoc".format(side))[0]
     cmds.xform(acromionLoc, t=shoulderPos, ws=True)
 
     scapulaLoc = cmds.spaceLocator(name="{0}_scapulaLoc".format(side))[0]
     cmds.delete(cmds.pointConstraint(back3Jo, neckJo, acromionLoc, scapulaLoc, mo=False, w=True))
 
-    tipLoc = cmds.spaceLocator(name="{0}_tipLoc".format(side))[0]
+    tipLoc = cmds.spaceLocator(name="{0}_scapulaTipLoc".format(side))[0]
     cmds.delete(cmds.pointConstraint(acromionLoc, scapulaLoc, tipLoc, mo=False, w=True))
     cmds.delete(cmds.pointConstraint(back3Jo, tipLoc, skip=("x", "z"), mo=False, w=True))
 

@@ -1,4 +1,6 @@
 import maya.cmds as cmds
+import json
+import os.path
 import maya.api.OpenMaya as om
 from . import muscle_units as mu
 
@@ -45,24 +47,83 @@ def mirrorMuscleGroup(muscleGrp, groupClass, muscleName, mirrorAxis="x", side="L
         return
     if side == "R":
         prefix = "L"
+
+    for key, value in kwargs.items():
+        if isinstance(value, str):
+            kwargs[key] = value.replace(side + "_", prefix + "_")
+
     mirrorPosList = getMirrorPos(muscleGrp=muscleGrp, mirrorAxis=mirrorAxis,
                                  size=len(muscleGrp.muscleUnitGroup), side=side, prefix=prefix)
-    mirrorInstance = groupClass(muscleName="{0}_{1}".format(prefix, muscleName), **kwargs)
+    mirrorInstance = groupClass(muscleName, **kwargs)
 
+    mirrorInstance.add()
     for muscle, pos in zip(mirrorInstance.muscleUnitGroup, mirrorPosList):
         cmds.xform(muscle.originLoc, translation=pos[0])
         cmds.xform(muscle.insertionLoc, translation=pos[1])
         cmds.xform(muscle.centerLoc, translation=pos[2])
+    mirrorInstance.build()
     return mirrorInstance
 
 
+def exportMuscles(fileName, *args):
+    filePath = os.path.abspath(__file__ + "/../data/{0}.json".format(fileName))
+
+    muscleData = {}
+    for group in args:
+        muscleData.update(group.serialize())
+
+    with open(filePath, "w") as fp:
+        json.dump(muscleData, fp, ensure_ascii=False, indent=4, separators=(",", ":"))
+
+
+def importMuscles(fileName):
+    filePath = os.path.abspath(__file__ + "/../data/{0}.json".format(fileName))
+    muscleInstancesGrp = []
+
+    with open(filePath) as fp:
+        muscleData = json.load(fp)
+
+    for muscleGroup, attributes in muscleData.items():
+        muscleClass = attributes.get("Tag")
+        classInputs = attributes.get("inputs")
+        dataPos = []
+        for key, value in attributes.items():
+            if isinstance(value, list):
+                dataPos.append(value)
+        groupedPos = [dataPos[i:i+3] for i in range(0, len(dataPos), 3)]
+
+        # 动态获取类并创建实例
+        if muscleClass in globals():
+            muscle_class = globals()[muscleClass]
+            newInstance = muscle_class(muscleGroup, **classInputs)
+            newInstance.add()
+            for muscle, pos in zip(newInstance.muscleUnitGroup, groupedPos):
+                cmds.xform(muscle.originLoc, worldSpace=True, translation=pos[0])
+                cmds.xform(muscle.insertionLoc, worldSpace=True, translation=pos[1])
+                cmds.xform(muscle.centerLoc, worldSpace=True, translation=pos[2])
+            newInstance.build()
+            muscleInstancesGrp.append(newInstance)
+    return muscleInstancesGrp
+
+
 class BipedMuscles(object):
-    def __init__(self):
+    def __init__(self, muscleName, tag):
+        self.muscleName = muscleName
+        self.tag = tag
         self.muscleUnitGroup = []
+        self.mirrorJoints = []
         self.muscleCons = []
+        self.muscleData = {}
+
+    def __str__(self):
+        return self.muscleName
+
+    def add(self):
+        pass
 
     def build(self):
-        pass
+        for muscleUnit in self.muscleUnitGroup:
+            muscleUnit.update()
 
     def delete(self):
         if self.muscleCons:
@@ -78,11 +139,26 @@ class BipedMuscles(object):
         for i in self.muscleUnitGroup:
             i.edit()
 
-    
-class TrapeziusGroup(BipedMuscles):
+    def mirror(self):
+        pass
+
+    def serialize(self):
+        self.muscleData = {}
+        self.muscleData[self.muscleName] = {}
+        for muscle in self.muscleUnitGroup:
+            muscleOriginPos = cmds.xform(muscle.muscleOrigin, translation=True, query=True, worldSpace=True)
+            muscleInsertionPos = cmds.xform(muscle.muscleInsertion, translation=True, query=True, worldSpace=True)
+            muscleCenterPos = cmds.xform(muscle.JOmuscle, translation=True, query=True, worldSpace=True)
+            self.muscleData[self.muscleName].update({muscle.muscleOrigin: muscleOriginPos})
+            self.muscleData[self.muscleName].update({muscle.muscleInsertion: muscleInsertionPos})
+            self.muscleData[self.muscleName].update({muscle.JOmuscle: muscleCenterPos})
+        self.muscleData[self.muscleName].update({"Tag": self.tag})
+
+
+class TrapGroup(BipedMuscles):
 
     def __init__(self, muscleName, back2Joint, clavicleJoint, acromionJoint):
-        super().__init__()
+        super().__init__(muscleName, "TrapGroup")
         self.muscleName = muscleName
         self.back2Joint = back2Joint
         self.back3Joint = cmds.listRelatives(self.back2Joint, children=True)[0]
@@ -93,24 +169,23 @@ class TrapeziusGroup(BipedMuscles):
         self.acromionJoint = acromionJoint
         self.scapulaJoint = cmds.listRelatives(self.acromionJoint, children=True)[0]
 
-        self.trapeziusA = createMuscleUnit(muscleName=self.muscleName+"A",
+    def add(self):
+        self.trapeziusA = createMuscleUnit(muscleName=self.muscleName + "A",
                                            originJoint=self.neckJoint, originEndJoint=self.headJoint,
                                            insertionJoint=self.clavicleJoint, insertionEndJoint=self.shoulderJoint,
-                                           moveFactor=[1/2.0, 5/6.0])
-        self.trapeziusB = createMuscleUnit(muscleName=self.muscleName+"B",
+                                           moveFactor=[1 / 2.0, 5 / 6.0])
+        self.trapeziusB = createMuscleUnit(muscleName=self.muscleName + "B",
                                            originJoint=self.back3Joint, originEndJoint=self.neckJoint,
                                            insertionJoint=self.acromionJoint, insertionEndJoint=self.scapulaJoint,
-                                           moveFactor=[6/8.0, 1/4.0])
-        self.trapeziusC = createMuscleUnit(muscleName=self.muscleName+"C",
+                                           moveFactor=[6 / 8.0, 1 / 4.0])
+        self.trapeziusC = createMuscleUnit(muscleName=self.muscleName + "C",
                                            originJoint=self.back3Joint, originEndJoint=self.neckJoint,
                                            insertionJoint=self.acromionJoint, insertionEndJoint=self.scapulaJoint,
-                                           moveFactor=[1/8.0, 3/4.0])
+                                           moveFactor=[1 / 8.0, 3 / 4.0])
         self.muscleUnitGroup = [self.trapeziusA, self.trapeziusB, self.trapeziusC]
 
     def build(self):
-        for trapPart in self.muscleUnitGroup:
-            trapPart.update()
-
+        super().build()
         originalAimCons = cmds.listRelatives(self.trapeziusA.muscleBase, type="aimConstraint")[0]
         if originalAimCons:
             cmds.delete(originalAimCons)
@@ -128,80 +203,104 @@ class TrapeziusGroup(BipedMuscles):
                                                      mo=True, weight=True)
         self.muscleCons = [self.trapAParentCons, self.trapCParentCons]
 
+    def mirror(self, mirrorAxis="x", side="L", prefix="R"):
+        if side == "R":
+            prefix = "L"
+        return mirrorMuscleGroup(muscleGrp=self, groupClass=TrapGroup, mirrorAxis=mirrorAxis,
+                                 side=side, prefix=prefix,
+                                 muscleName=self.muscleName.replace(side + "_", prefix + "_"),
+                                 back2Joint=self.back2Joint, clavicleJoint=self.clavicleJoint,
+                                 acromionJoint=self.acromionJoint)
 
-def trapeMirror(muscleGrp, muscleName, back2Joint, clavicleJoint, acromionJoint, mirrorAxis="x", side="L", prefix="R"):
-    return mirrorMuscleGroup(muscleGrp=muscleGrp, groupClass=TrapeziusGroup, muscleName=muscleName,
-                             mirrorAxis=mirrorAxis, side=side, prefix=prefix,
-                             back2Joint=back2Joint, clavicleJoint=clavicleJoint, acromionJoint=acromionJoint)
+    def serialize(self):
+        muscleData = super().serialize()
+        self.muscleData[self.muscleName].update({"inputs": {"back2Joint": self.back2Joint,
+                                                            "clavicleJoint": self.clavicleJoint,
+                                                            "acromionJoint": self.acromionJoint
+                                                            }})
+        print(self.muscleData)
+        return self.muscleData
 
 
 class LatsGroup(BipedMuscles):
-    def __init__(self, muscleName, back1Joint, armJoint, scapulaJoint, trapC):
-        super().__init__()
-        self.muscleName = muscleName
+    def __init__(self, muscleName, back1Joint, twist2Joint, scapulaJoint, trapCJoint):
+        super().__init__(muscleName, "LatsGroup")
         self.back1Joint = back1Joint
         self.back2Joint = cmds.listRelatives(self.back1Joint, children=True)[0]
         self.back3Joint = cmds.listRelatives(self.back2Joint, children=True)[0]
-        self.armJoint = armJoint
-        self.shoulderJoint = cmds.listRelatives(self.armJoint, parent=True)[0]
+        self.twist2Joint = twist2Joint
+        self.shoulderJoint = cmds.listRelatives(self.twist2Joint, parent=True)[0]
         self.scapulaJoint = scapulaJoint
         self.scapulaTipJoint = cmds.listRelatives(self.scapulaJoint, children=True)[0]
-        self.trapC = trapC
+        self.trapCJoint = trapCJoint
 
-        self.latsA = createMuscleUnit(muscleName=self.muscleName+"A",
+    def add(self):
+        self.latsA = createMuscleUnit(muscleName=self.muscleName + "A",
                                       originJoint=self.back2Joint, originEndJoint=self.back3Joint,
-                                      insertionJoint=self.armJoint, insertionEndJoint=self.shoulderJoint,
-                                      moveFactor=[1/2.0, 1/2.0])
-        self.latsB = createMuscleUnit(muscleName=self.muscleName+"B",
+                                      insertionJoint=self.twist2Joint, insertionEndJoint=self.shoulderJoint,
+                                      moveFactor=[1 / 2.0, 1 / 2.0])
+        self.latsB = createMuscleUnit(muscleName=self.muscleName + "B",
                                       originJoint=self.back1Joint, originEndJoint=self.back2Joint,
-                                      insertionJoint=self.armJoint, insertionEndJoint=self.shoulderJoint,
-                                      moveFactor=[1/10.0, 1/2.0])
-        self.latsC = createMuscleUnit(muscleName=self.muscleName+"C",
+                                      insertionJoint=self.twist2Joint, insertionEndJoint=self.shoulderJoint,
+                                      moveFactor=[1 / 10.0, 1 / 2.0])
+        self.latsC = createMuscleUnit(muscleName=self.muscleName + "C",
                                       originJoint=self.scapulaTipJoint, originEndJoint=self.scapulaJoint,
-                                      insertionJoint=self.armJoint, insertionEndJoint=self.shoulderJoint,
-                                      moveFactor=[1/10.0, 1/2.0])
+                                      insertionJoint=self.twist2Joint, insertionEndJoint=self.shoulderJoint,
+                                      moveFactor=[1 / 10.0, 1 / 2.0])
         self.muscleUnitGroup = [self.latsA, self.latsB, self.latsC]
 
     def build(self):
-        for latsPart in self.muscleUnitGroup:
-            latsPart.update()
+        super().build()
 
         self.latsBPointCos = cmds.pointConstraint(self.back3Joint, self.latsB.muscleOffset,
                                                   mo=True, weight=True, skip="y")
-        self.latsAPointCos = cmds.pointConstraint(self.latsB.JOmuscle, self.trapC, self.latsA.muscleOffset,
+        self.latsAPointCos = cmds.pointConstraint(self.latsB.JOmuscle, self.trapCJoint, self.latsA.muscleOffset,
                                                   mo=True, weight=True)
         self.muscleCons = [self.latsAPointCos, self.latsBPointCos]
 
+    def mirror(self, mirrorAxis="x", side="L", prefix="R"):
+        if side == "R":
+            prefix = "L"
+        return mirrorMuscleGroup(muscleGrp=self, groupClass=LatsGroup, mirrorAxis=mirrorAxis,
+                                 side=side, prefix=prefix,
+                                 muscleName=self.muscleName.replace(side + "_", prefix + "_"),
+                                 back1Joint=self.back1Joint, twist2Joint=self.twist2Joint,
+                                 scapulaJoint=self.scapulaJoint, trapCJoint=self.trapCJoint)
 
-def latsMirror(muscleGrp, muscleName, back1Joint, armJoint, scapulaJoint, trapC, mirrorAxis="x", side="L", prefix="R"):
-    return mirrorMuscleGroup(muscleGrp=muscleGrp, groupClass=LatsGroup, muscleName=muscleName,
-                             mirrorAxis=mirrorAxis, side=side, prefix=prefix,
-                             back1Joint=back1Joint, armJoint=armJoint, scapulaJoint=scapulaJoint, trapC=trapC)
+    def serialize(self):
+        muscleData = super().serialize()
+        self.muscleData[self.muscleName].update({"inputs": {"back1Joint": self.back1Joint,
+                                                            "twist2Joint": self.twist2Joint,
+                                                            "scapulaJoint": self.scapulaJoint,
+                                                            "trapCJoint": self.trapCJoint
+                                                            }})
+        print(self.muscleData)
+        return self.muscleData
 
 
 class DeltoidGroup(BipedMuscles):
-    def __init__(self, muscleName, clavicleJoint, armJoint, twistJoint, shoulderJoint, acromionJoint, sacpulaJoint):
-        super().__init__()
-        self.muscleName = muscleName
+    def __init__(self, muscleName, clavicleJoint, upperArmJoint, twist1Joint, twist2Joint, acromionJoint):
+        super().__init__(muscleName, "DeltoidGroup")
         self.clavicleJoint = clavicleJoint
-        self.armJoint = armJoint
-        self.twistJoint = twistJoint
-        self.acrominonJoint = acromionJoint
-        self.sacpulaJoint = sacpulaJoint
-        self.shoulderJoint = shoulderJoint
+        self.upperArmJoint = upperArmJoint
+        self.twist1Joint = twist1Joint
+        self.twist2Joint = twist2Joint
+        self.acromionJoint = acromionJoint
+        self.sacpulaJoint = cmds.listRelatives(self.acromionJoint, children=True)[0]
 
-        self.deltoidA = createMuscleUnit(muscleName=self.muscleName+"A",
-                                         originJoint=self.clavicleJoint, originEndJoint=self.armJoint,
-                                         insertionJoint=self.twistJoint, insertionEndJoint=self.armJoint,
-                                         moveFactor=[5/6.0, 0.0])
-        self.deltoidB = createMuscleUnit(muscleName=self.muscleName+"B",
-                                         originJoint=self.acrominonJoint, originEndJoint=self.acrominonJoint,
-                                         insertionJoint=self.twistJoint, insertionEndJoint=self.armJoint,
+    def add(self):
+        self.deltoidA = createMuscleUnit(muscleName=self.muscleName + "A",
+                                         originJoint=self.clavicleJoint, originEndJoint=self.upperArmJoint,
+                                         insertionJoint=self.twist2Joint, insertionEndJoint=self.upperArmJoint,
+                                         moveFactor=[5 / 6.0, 0.0])
+        self.deltoidB = createMuscleUnit(muscleName=self.muscleName + "B",
+                                         originJoint=self.acromionJoint, originEndJoint=self.acromionJoint,
+                                         insertionJoint=self.twist2Joint, insertionEndJoint=self.upperArmJoint,
                                          moveFactor=[1.0, 0.0])
-        self.deltoidC = createMuscleUnit(muscleName=self.muscleName+"C",
-                                         originJoint=self.sacpulaJoint, originEndJoint=self.acrominonJoint,
-                                         insertionJoint=self.twistJoint, insertionEndJoint=self.armJoint,
-                                         moveFactor=[5/6.0, 0.0])
+        self.deltoidC = createMuscleUnit(muscleName=self.muscleName + "C",
+                                         originJoint=self.sacpulaJoint, originEndJoint=self.acromionJoint,
+                                         insertionJoint=self.twist2Joint, insertionEndJoint=self.upperArmJoint,
+                                         moveFactor=[5 / 6.0, 0.0])
         self.muscleUnitGroup = [self.deltoidA, self.deltoidB, self.deltoidC]
 
     def build(self):
@@ -212,18 +311,89 @@ class DeltoidGroup(BipedMuscles):
                                                                deltoidPart.muscleBase, mo=True,
                                                                aimVector=[0, 1, 0], upVector=[1, 0, 0],
                                                                worldUpType="objectrotation",
-                                                               worldUpObject=self.shoulderJoint,
+                                                               worldUpObject=self.twist1Joint,
                                                                worldUpVector=[1, 0, 0])
         self.deltoidPointCons = cmds.pointConstraint(self.deltoidA.JOmuscle, self.deltoidC.JOmuscle,
                                                      self.deltoidB.muscleOffset, mo=True, weight=1)
 
         self.muscleCons = [self.deltoidPointCons]
 
+    def mirror(self, mirrorAxis="x", side="L", prefix="R"):
+        if side == "R":
+            prefix = "L"
+        return mirrorMuscleGroup(muscleGrp=self, groupClass=DeltoidGroup, mirrorAxis=mirrorAxis,
+                                 side=side, prefix=prefix,
+                                 muscleName=self.muscleName.replace(side + "_", prefix + "_"),
+                                 clavicleJoint=self.clavicleJoint, upperArmJoint=self.upperArmJoint,
+                                 twist1Joint=self.twist1Joint, twist2Joint=self.twist2Joint,
+                                 acromionJoint=self.acromionJoint)
 
-def deltoidMirror(muscleGrp, muscleName, clavicleJoint, armJoint, twistJoint, shoulderJoint, acromionJoint, sacpulaJoint,
-                  mirrorAxis="x", side="L", prefix="R"):
-    return mirrorMuscleGroup(muscleGrp=muscleGrp, groupClass=DeltoidGroup, muscleName=muscleName,
-                             mirrorAxis=mirrorAxis, side=side, prefix=prefix,
-                             clavicleJoint=clavicleJoint, armJoint=armJoint, twistJoint=twistJoint,
-                             shoulderJoint=shoulderJoint, acromionJoint=acromionJoint, sacpulaJoint=sacpulaJoint)
+    def serialize(self):
+        muscleData = super().serialize()
+        self.muscleData[self.muscleName].update({"inputs": {"clavicleJoint": self.clavicleJoint,
+                                                            "upperArmJoint": self.upperArmJoint,
+                                                            "twist1Joint": self.twist1Joint,
+                                                            "twist2Joint": self.twist2Joint,
+                                                            "acromionJoint": self.acromionJoint
+                                                            }})
+        print(self.muscleData)
+        return self.muscleData
 
+
+class ArmMuscleGroup(BipedMuscles):
+    def __init__(self, muscleName, upArmTwsitJoint, lowArmTwsitJoint, twistBaseJoint, twistValueJoint, acromionJoint):
+        super().__init__(muscleName, "ArmMuscleGroup")
+        self.upArmTwsitJoint = upArmTwsitJoint
+        self.upperArmJoint = cmds.listRelatives(self.upArmTwsitJoint, parent=True)[0]
+        self.lowArmTwsitJoint = lowArmTwsitJoint
+        self.lowArmJoint = cmds.listRelatives(self.lowArmTwsitJoint, parent=True)[0]
+        self.acromionJoint = acromionJoint
+        self.sacpulaJoint = cmds.listRelatives(self.acromionJoint, children=True)[0]
+        self.twistBaseJoint = twistBaseJoint
+        self.twistValueJoint = twistValueJoint
+
+    def add(self):
+        self.armMuscleA = createMuscleUnit(muscleName=self.muscleName + "A",
+                                           originJoint=self.upArmTwsitJoint, originEndJoint=self.upperArmJoint,
+                                           insertionJoint=self.lowArmTwsitJoint,
+                                           insertionEndJoint=self.lowArmTwsitJoint,
+                                           moveFactor=[0.5, 0.0])
+        self.armMuscleB = createMuscleUnit(muscleName=self.muscleName + "B",
+                                           originJoint=self.sacpulaJoint, originEndJoint=self.acromionJoint,
+                                           insertionJoint=self.lowArmJoint, insertionEndJoint=self.lowArmTwsitJoint,
+                                           moveFactor=[4 / 6.0, 0.2])
+        self.muscleUnitGroup = [self.armMuscleA, self.armMuscleB]
+
+    def build(self):
+        super().build()
+
+        self.armMuscleBPointCons = cmds.orientConstraint(self.twistBaseJoint, self.twistValueJoint,
+                                                         self.armMuscleB.muscleOrigin, mo=True, weight=0.5)
+        self.armMuscleAParnetCons = cmds.parentConstraint(self.upperArmJoint, self.armMuscleA.muscleOffset,
+                                                          mo=True, weight=True, skipTranslate=['x', 'y'],
+                                                          skipRotate=['x', 'y', 'z'])
+        self.armMuscleBParentCons = cmds.parentConstraint(self.upperArmJoint, self.armMuscleB.muscleOffset,
+                                                          mo=True, weight=True, skipTranslate=['x', 'y'],
+                                                          skipRotate=['x', 'y', 'z'])
+        self.muscleCons = [self.armMuscleBPointCons, self.armMuscleAParnetCons, self.armMuscleBParentCons]
+
+    def mirror(self, mirrorAxis="x", side="L", prefix="R"):
+        if side == "R":
+            prefix = "L"
+        return mirrorMuscleGroup(muscleGrp=self, groupClass=ArmMuscleGroup, mirrorAxis=mirrorAxis,
+                                 side=side, prefix=prefix,
+                                 muscleName=self.muscleName.replace(side + "_", prefix + "_"),
+                                 upArmTwsitJoint=self.upArmTwsitJoint, lowArmTwsitJoint=self.lowArmTwsitJoint,
+                                 twistBaseJoint=self.twistBaseJoint, twistValueJoint=self.twistValueJoint,
+                                 acromionJoint=self.acromionJoint)
+
+    def serialize(self):
+        muscleData = super().serialize()
+        self.muscleData[self.muscleName].update({"inputs": {"upArmTwsitJoint": self.upArmTwsitJoint,
+                                                            "lowArmTwsitJoint": self.lowArmTwsitJoint,
+                                                            "twistBaseJoint": self.twistBaseJoint,
+                                                            "twistValueJoint": self.twistValueJoint,
+                                                            "acromionJoint": self.acromionJoint
+                                                            }})
+        print(self.muscleData)
+        return self.muscleData
