@@ -159,7 +159,6 @@ class TrapGroup(BipedMuscles):
 
     def __init__(self, muscleName, back2Joint, clavicleJoint, acromionJoint):
         super().__init__(muscleName, "TrapGroup")
-        self.muscleName = muscleName
         self.back2Joint = back2Joint
         self.back3Joint = cmds.listRelatives(self.back2Joint, children=True)[0]
         self.neckJoint = cmds.listRelatives(self.back3Joint, children=True)[0]
@@ -218,7 +217,6 @@ class TrapGroup(BipedMuscles):
                                                             "clavicleJoint": self.clavicleJoint,
                                                             "acromionJoint": self.acromionJoint
                                                             }})
-        print(self.muscleData)
         return self.muscleData
 
 
@@ -274,7 +272,6 @@ class LatsGroup(BipedMuscles):
                                                             "scapulaJoint": self.scapulaJoint,
                                                             "trapCJoint": self.trapCJoint
                                                             }})
-        print(self.muscleData)
         return self.muscleData
 
 
@@ -313,10 +310,12 @@ class DeltoidGroup(BipedMuscles):
                                                                worldUpType="objectrotation",
                                                                worldUpObject=self.twist1Joint,
                                                                worldUpVector=[1, 0, 0])
-        self.deltoidPointCons = cmds.pointConstraint(self.deltoidA.JOmuscle, self.deltoidC.JOmuscle,
-                                                     self.deltoidB.muscleOffset, mo=True, weight=1)
+        self.deltoidBPointCons = cmds.pointConstraint(self.deltoidA.JOmuscle, self.deltoidC.JOmuscle,
+                                                      self.deltoidB.muscleOffset, mo=True, weight=1)
+        self.deltoidCPointCons = cmds.pointConstraint(self.upperArmJoint, self.deltoidC.JOmuscle,
+                                                      mo=True, weight=1, skip=['x', 'y'])
 
-        self.muscleCons = [self.deltoidPointCons]
+        self.muscleCons = [self.deltoidBPointCons, self.deltoidCPointCons]
 
     def mirror(self, mirrorAxis="x", side="L", prefix="R"):
         if side == "R":
@@ -336,7 +335,6 @@ class DeltoidGroup(BipedMuscles):
                                                             "twist2Joint": self.twist2Joint,
                                                             "acromionJoint": self.acromionJoint
                                                             }})
-        print(self.muscleData)
         return self.muscleData
 
 
@@ -395,5 +393,47 @@ class ArmMuscleGroup(BipedMuscles):
                                                             "twistValueJoint": self.twistValueJoint,
                                                             "acromionJoint": self.acromionJoint
                                                             }})
-        print(self.muscleData)
+        return self.muscleData
+
+
+class PectoralisGroup(BipedMuscles):
+
+    def __init__(self, muscleName, back3Joint, clavicleJoint, upperarmJoint, twist2Joint):
+        super().__init__(muscleName, "PectoralisGroup")
+        self.back3Joint = back3Joint
+        self.clavicleJoint = clavicleJoint
+        self.upperarmJoint = upperarmJoint
+        self.twist2Joint = twist2Joint
+
+    def add(self):
+        self.pectoralisA = createMuscleUnit(muscleName=self.muscleName + "A",
+                                            originJoint=self.back3Joint, originEndJoint=self.back3Joint,
+                                            insertionJoint=self.twist2Joint, insertionEndJoint=self.upperarmJoint,
+                                            moveFactor=[1.0, 1 / 2.0])
+        self.pectoralisB = createMuscleUnit(muscleName=self.muscleName + "B",
+                                            originJoint=self.clavicleJoint, originEndJoint=self.upperarmJoint,
+                                            insertionJoint=self.twist2Joint, insertionEndJoint=self.upperarmJoint,
+                                            moveFactor=[1/4.0, 1 / 2.0])
+        self.muscleUnitGroup = [self.pectoralisA, self.pectoralisB]
+
+    def build(self):
+        super().build()
+        self.muscleCons = []
+
+    def mirror(self, mirrorAxis="x", side="L", prefix="R"):
+        if side == "R":
+            prefix = "L"
+        return mirrorMuscleGroup(muscleGrp=self, groupClass=PectoralisGroup, mirrorAxis=mirrorAxis,
+                                 side=side, prefix=prefix,
+                                 muscleName=self.muscleName.replace(side + "_", prefix + "_"),
+                                 back3Joint=self.back3Joint, clavicleJoint=self.clavicleJoint,
+                                 upperarmJoint=self.upperarmJoint, twist2Joint=self.twist2Joint)
+
+    def serialize(self):
+        muscleData = super().serialize()
+        self.muscleData[self.muscleName].update({"inputs": {"back3Joint": self.back3Joint,
+                                                            "clavicleJoint": self.clavicleJoint,
+                                                            "upperarmJoint": self.upperarmJoint,
+                                                            "twist2Joint": self.twist2Joint
+                                                            }})
         return self.muscleData
