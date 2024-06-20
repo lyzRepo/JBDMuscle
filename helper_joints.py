@@ -22,10 +22,10 @@ def duplicateJoint(inputJoint, group=None, name="copy"):
 
 
 def getLength(startJoint, endJoint):
-    elbowPos = om.MVector(cmds.xform(startJoint, translation=True, ws=True, q=True))
-    wristPos = om.MVector(cmds.xform(endJoint, translation=True, ws=True, q=True))
-    armLength = (elbowPos - wristPos).length()
-    return armLength
+    startPos = om.MVector(cmds.xform(startJoint, translation=True, ws=True, q=True))
+    endJPos = om.MVector(cmds.xform(endJoint, translation=True, ws=True, q=True))
+    Length = (startPos - endJPos).length()
+    return Length
 
 
 def forArmTwist(lowerArm=None, wrist=None, jointCount=3, aimVec=None, upVector=None):
@@ -190,7 +190,7 @@ def generateScapulaLocs(shoulderJo, back3Jo, neckJo, side="L"):
     cmds.delete(cmds.pointConstraint(back3Jo, tipLoc, skip=("x", "z"), mo=False, w=True))
 
 
-def createScapulaJoints(clavicle, neckJoint, backJoint, oj="yzx", sao="zup", upVec=1):
+def createScapulaJoints(clavicle, neckJoint, backJoint, upVec=1):
     loctors = cmds.ls(sl=True)
     locList = [loc.split("Loc")[0] for loc in loctors]
     posList = [cmds.xform(locPos, t=True, ws=True, q=True) for locPos in loctors]
@@ -198,12 +198,35 @@ def createScapulaJoints(clavicle, neckJoint, backJoint, oj="yzx", sao="zup", upV
     cmds.select(cl=True)
     boneLis = [cmds.joint(n=loc, p=pos) for loc, pos in zip(locList, posList)]
 
-    for joint in boneLis:
-        cmds.joint(joint, e=True, oj=oj, sao=sao, ch=True, zso=True)
-
     cmds.parent(boneLis[0], clavicle)
-    print(boneLis[0])
 
     cmds.aimConstraint(neckJoint, boneLis[0], aimVector=[0, 1, 0], upVector=[upVec, 0, 0],
                        worldUpType="objectrotation", worldUpVector=[0, 1, 0], worldUpObject=backJoint, mo=True,
                        weight=True)
+
+
+def generateElbowFixLocs(lowerArmJo, upperArmJo, axis="z", side="L"):
+    elbowPos = cmds.xform(lowerArmJo, translation=True, ws=True, q=True)
+    elbowFixRootLoc = cmds.spaceLocator(name="{0}_elbowFixRootLoc".format(side))[0]
+    cmds.delete(cmds.parentConstraint(lowerArmJo, elbowFixRootLoc, weight=1))
+    elbowFixLoc = cmds.duplicate(elbowFixRootLoc, name="{0}_elbowFixLoc".format(side))[0]
+    cmds.parent(elbowFixLoc, elbowFixRootLoc)
+
+    moveLength = getLength(lowerArmJo, upperArmJo)
+    cmds.setAttr("{0}.t{1}".format(elbowFixLoc, axis), -moveLength/3)
+
+
+def createElbowFixJoints(lowerArmJo):
+    loctors = cmds.ls(sl=True)
+    locList = [loc.split("Loc")[0] for loc in loctors]
+    posList = [cmds.xform(locPos, t=True, ws=True, q=True) for locPos in loctors]
+    cmds.select(cl=True)
+    boneLis = [cmds.joint(n=loc, p=pos) for loc, pos in zip(locList, posList)]
+
+    cmds.parent(boneLis[1], world=True)
+    cmds.delete(cmds.orientConstraint(lowerArmJo, boneLis[0], weight=1))
+    cmds.makeIdentity(boneLis[0], apply=True, rotate=True, preserveNormals=True, normal=False)
+    cmds.parent(boneLis[1], boneLis[0])
+    cmds.parent(boneLis[0], lowerArmJo)
+
+
