@@ -106,6 +106,10 @@ def importMuscles(fileName):
     return muscleInstancesGrp
 
 
+def addJiggleJoint():
+    pass
+
+
 class BipedMuscles(object):
     def __init__(self, muscleName, tag):
         self.muscleName = muscleName

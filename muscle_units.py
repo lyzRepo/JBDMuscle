@@ -28,6 +28,7 @@ class MuscleJoint(object):
         self.allJoints = []
         self.originAttachObj = None
         self.insertionAttachObj = None
+        self.jiggleGroup = []
 
         self.create(muscleName, muscleLength, stretchOffset=stretchOffset, compressionOffset=compressionOffset)
         self.edit()
@@ -72,6 +73,10 @@ class MuscleJoint(object):
         self.addSDK()
 
     def edit(self):
+        if self.jiggleGroup:
+            cmds.parent(self.muscleOffset, self.muscleDriver)
+            for i in self.jiggleGroup:
+                cmds.delete(i)
 
         def createSpaceLocator(scaleValue, **kwargs):
             loc = cmds.spaceLocator(**kwargs)[0]
@@ -117,7 +122,6 @@ class MuscleJoint(object):
         self.ptConstraintsTmp.append(cmds.pointConstraint(self.centerLoc, self.muscleDriver, mo=False, w=True)[0])
 
     def update(self):
-
         for ptConstraintsTmp in self.ptConstraintsTmp:
             if cmds.objExists(ptConstraintsTmp):
                 cmds.delete(ptConstraintsTmp)
@@ -195,6 +199,35 @@ class MuscleJoint(object):
                                    currentDriver="{0}.translateY".format(self.muscleTip))
 
             cmds.setAttr("{0}.translateY".format(self.muscleTip), restLength)
+
+    def jiggle(self):
+        self.jiggleBase = createJnt(jointName=("{0}_jiggleBase".format(self.muscleName)), parent=self.muscleDriver)
+        self.jiggleValue = createJnt(jointName=("{0}_jiggleValue".format(self.muscleName)), parent=self.muscleDriver)
+        self.jiggleJoint = createJnt(jointName=("{0}_jiggleJoint".format(self.muscleName)), parent=self.muscleBase)
+
+        tempCons = cmds.aimConstraint(self.JOmuscle, self.jiggleJoint,
+                                      aimVector=[0, 1, 0], upVector=[1, 0, 0],
+                                      worldUpType="objectrotation", worldUpObject=self.muscleDriver,
+                                      worldUpVector=[1, 0, 0])[0]
+        cmds.delete(tempCons)
+        cmds.parent(self.jiggleJoint, self.muscleDriver)
+        cmds.parent(self.muscleOffset, self.jiggleJoint)
+
+        self.DCMNode = cmds.createNode("decomposeMatrix", name=("{0}_decomposeMatrix".format(self.muscleName)))
+        self.jiggleNode = cmds.createNode("jiggleJoint", name=("{0}_jiggleJoint".format(self.muscleName)))
+
+        cmds.connectAttr("{0}.worldMatrix[0]".format(self.jiggleBase), "{0}.inputMatrix".format(self.DCMNode))
+        cmds.connectAttr("{0}.outputTranslate".format(self.DCMNode), "{0}.goal".format(self.jiggleNode))
+        cmds.connectAttr("time1.outTime", "{0}.time".format(self.jiggleNode))
+        cmds.connectAttr("{0}.parentInverseMatrix[0]".format(self.jiggleValue),
+                         "{0}.parentInverse".format(self.jiggleNode))
+        cmds.connectAttr("{0}.output".format(self.jiggleNode), "{0}.translate".format(self.jiggleValue))
+        cmds.setAttr("{0}.stiffness".format(self.jiggleNode), 0.005)
+        cmds.setAttr("{0}.damping".format(self.jiggleNode), 0.05)
+        self.jiggleAimCons = cmds.aimConstraint(self.jiggleValue, self.jiggleJoint, aimVector=[0, 1, 0],
+                                                upVector=[1, 0, 0], worldUpType="objectrotation",
+                                                worldUpObject=self.muscleDriver, worldUpVector=[1, 0, 0])
+        self.jiggleGroup = [self.jiggleBase, self.jiggleValue, self.jiggleJoint]
 
     def delete(self):
         self.update()
