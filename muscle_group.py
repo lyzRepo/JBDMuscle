@@ -146,6 +146,10 @@ class BipedMuscles(object):
     def mirror(self):
         pass
 
+    def jiggleGroup(self):
+        for i in self.muscleUnitGroup:
+            i.jiggle()
+
     def serialize(self):
         self.muscleData = {}
         self.muscleData[self.muscleName] = {}
@@ -157,6 +161,8 @@ class BipedMuscles(object):
             self.muscleData[self.muscleName].update({muscle.muscleInsertion: muscleInsertionPos})
             self.muscleData[self.muscleName].update({muscle.JOmuscle: muscleCenterPos})
         self.muscleData[self.muscleName].update({"Tag": self.tag})
+
+
 
 
 class TrapGroup(BipedMuscles):
