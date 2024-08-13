@@ -163,8 +163,6 @@ class BipedMuscles(object):
         self.muscleData[self.muscleName].update({"Tag": self.tag})
 
 
-
-
 class TrapGroup(BipedMuscles):
 
     def __init__(self, muscleName, back2Joint, clavicleJoint, acromionJoint):
