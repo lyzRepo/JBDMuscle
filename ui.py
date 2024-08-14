@@ -97,42 +97,28 @@ class CollapsibleWidget(QWidget):
         self.setExpanded(not self.headerWdg.isExpanded())
 
 
-class CustomListItem(QWidget):
-    def __init__(self, layout_type, parent=None):
-        super(CustomListItem, self).__init__(parent)
+class LayoutWidget(QWidget):
+    def __init__(self, layout, title=None, parent=None):
+        super(LayoutWidget, self).__init__(parent)
 
-        self.layout_type = layout_type
-        main_layout = QVBoxLayout()
+        main_layout = QVBoxLayout(self)
 
-        # 创建一个 QGroupBox 来包含每个布局
-        group_box = QGroupBox(f"{layout_type} Layout Group")
-        layout = QVBoxLayout()
+        # add group box for input layout
+        groupBox = QGroupBox(title)
+        groupBoxLayout = QVBoxLayout(groupBox)
+        groupBoxLayout.addLayout(layout)
+        groupBox.setLayout(groupBoxLayout)
 
-        label = QLabel(f"This is a label inside a {layout_type} layout")
-        layout.addWidget(label)
-
-        if layout_type == "Horizontal":
-            h_layout = QHBoxLayout()
-            h_layout.addWidget(QPushButton("Button 1"))
-            h_layout.addWidget(QPushButton("Button 2"))
-            layout.addLayout(h_layout)
-        elif layout_type == "Grid":
-            h_layout = QHBoxLayout()
-            h_layout.addWidget(QPushButton("Button 1"))
-            h_layout.addWidget(QPushButton("Button 2"))
-            h_layout.addWidget(QPushButton("Button 3"))
-            layout.addLayout(h_layout)
-
-        group_box.setLayout(layout)
-        main_layout.addWidget(group_box)
+        # add group box to main layout
+        main_layout.addWidget(groupBox)
         self.setLayout(main_layout)
 
-        # 添加右键菜单
+        # add right click event
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.open_menu)
 
     def open_menu(self, position):
-        menu = QMenu()
+        menu = QMenu(self)
         edit_action = menu.addAction("Edit")
         build_action = menu.addAction("Build")
         delete_action = menu.addAction("Delete")
@@ -145,7 +131,8 @@ class CustomListItem(QWidget):
         menu.exec_(self.mapToGlobal(position))
 
     def perform_action(self, action_name):
-        print(f"{action_name} action triggered for {self.layout_type} layout")
+        print(f"{action_name} action triggered")
+
 
 class ForArmTwistTab(QWidget):
     def __init__(self):
@@ -426,11 +413,9 @@ class ShoulderCounterFilpTab(QWidget):
         pass
 
 
-class MainWindow(QDialog):
-    def __init__(self, parent=mayaMainWindow()):
-        super(MainWindow, self).__init__(parent)
-        self.setWindowTitle("JBDMuscle")
-        self.resize(QSize(380, 470))
+class HelperJointWindow(QDialog):
+    def __init__(self, parent=None):
+        super(HelperJointWindow, self).__init__(parent)
 
         self.createWidgets()
         self.createLayout()
@@ -469,7 +454,60 @@ class MainWindow(QDialog):
         mainLayout.addWidget(self.bodyScrollArea)
 
 
+class MuscleGroupWindow(QDialog):
+    def __init__(self, parent=None):
+        super(MuscleGroupWindow, self).__init__(parent)
 
+        mainLayout = QVBoxLayout(self)
+
+        self.list_widget = QListWidget()
+        mainLayout.addWidget(self.list_widget)
+
+        # 创建布局
+        horizontal_layout = QHBoxLayout()
+        horizontal_layout.addWidget(QPushButton("Button 1"))
+        horizontal_layout.addWidget(QPushButton("Button 2"))
+
+        grid_layout = QVBoxLayout()
+        grid_layout.addWidget(QPushButton("Button 1"))
+        grid_layout.addWidget(QPushButton("Button 2"))
+        grid_layout.addWidget(QPushButton("Button 3"))
+
+        # 添加带有 GroupBox 的布局到 QListWidget
+        self.addLayoutItem(horizontal_layout, "Horizontal Layout Group")
+        self.addLayoutItem(grid_layout, "Grid Layout Group")
+
+        self.setLayout(mainLayout)
+
+    def addLayoutItem(self, layout, title):
+        list_item_widget = LayoutWidget(layout, title)
+        list_item = QListWidgetItem(self.list_widget)
+        list_item.setSizeHint(list_item_widget.sizeHint())
+        self.list_widget.addItem(list_item)
+        self.list_widget.setItemWidget(list_item, list_item_widget)
+
+class MainWindow(QDialog):
+    def __init__(self, parent=mayaMainWindow()):
+        super(MainWindow, self).__init__(parent)
+        self.setWindowTitle("JBDMuscle")
+        self.resize(QSize(500, 600))
+
+        self.createWidgets()
+        self.createLayout()
+
+    def createWidgets(self):
+        self.tabWidget = QTabWidget()
+
+        self.helpJointPage = HelperJointWindow()
+        self.muscleGroupPage = MuscleGroupWindow()
+        self.tabWidget.addTab(self.helpJointPage, "Helper Joints")
+        self.tabWidget.addTab(self.muscleGroupPage, "Muscle Group")
+
+    def createLayout(self):
+        self.mainLayout = QVBoxLayout()
+        self.mainLayout.setContentsMargins(0, 0, 0, 0)
+        self.mainLayout.addWidget(self.tabWidget)
+        self.setLayout(self.mainLayout)
 
 
 
