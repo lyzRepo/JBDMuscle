@@ -11,11 +11,25 @@ except ImportError:
 
 import maya.OpenMayaUI as omui
 from . import helper_joints
+from . import muscle_group
 
 
 def mayaMainWindow():
     mainWindowPtr = omui.MQtUtil.mainWindow()
     return wrapInstance(int(mainWindowPtr), QWidget)
+
+
+def createMuscleGroup(groupType, inputs):
+    if groupType == "Trapezius":
+        return muscle_group.TrapGroup(inputs[0], inputs[1], inputs[2], inputs[3])
+    elif groupType == "Lats":
+        return muscle_group.LatsGroup(*inputs)
+    elif groupType == "Deltoid":
+        return muscle_group.DeltoidGroup(*inputs)
+    elif groupType == "Arm":
+        return muscle_group.ArmMuscleGroup(*inputs)
+    elif groupType == "Pectoralis":
+        return muscle_group.PectoralisGroup(*inputs)
 
 
 class CollapsibleHeader(QWidget):
@@ -95,43 +109,6 @@ class CollapsibleWidget(QWidget):
 
     def headerClicked(self):
         self.setExpanded(not self.headerWdg.isExpanded())
-
-
-class LayoutWidget(QWidget):
-    def __init__(self, layout, title=None, parent=None):
-        super(LayoutWidget, self).__init__(parent)
-
-        main_layout = QVBoxLayout(self)
-
-        # add group box for input layout
-        groupBox = QGroupBox(title)
-        groupBoxLayout = QVBoxLayout(groupBox)
-        groupBoxLayout.addLayout(layout)
-        groupBox.setLayout(groupBoxLayout)
-
-        # add group box to main layout
-        main_layout.addWidget(groupBox)
-        self.setLayout(main_layout)
-
-        # add right click event
-        self.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.customContextMenuRequested.connect(self.open_menu)
-
-    def open_menu(self, position):
-        menu = QMenu(self)
-        edit_action = menu.addAction("Edit")
-        build_action = menu.addAction("Build")
-        delete_action = menu.addAction("Delete")
-
-        # 连接每个菜单项到对应的槽函数
-        edit_action.triggered.connect(lambda: self.perform_action("Edit"))
-        build_action.triggered.connect(lambda: self.perform_action("Build"))
-        delete_action.triggered.connect(lambda: self.perform_action("Delete"))
-
-        menu.exec_(self.mapToGlobal(position))
-
-    def perform_action(self, action_name):
-        print(f"{action_name} action triggered")
 
 
 class ForArmTwistTab(QWidget):
@@ -454,37 +431,212 @@ class HelperJointWindow(QDialog):
         mainLayout.addWidget(self.bodyScrollArea)
 
 
+class LayoutWidget(QWidget):
+    def __init__(self, groupType, inputs, parent=None):
+        super(LayoutWidget, self).__init__(parent)
+        mainLayout = QVBoxLayout()
+        groupBox = QGroupBox(groupType)
+        groupBoxLayout = QVBoxLayout(groupBox)
+        mainLayout.addWidget(groupBox)
+        self.setLayout(mainLayout)
+        self.skeleton_group = createMuscleGroup(groupType, inputs)
+        self.skeleton_group.add()
+
+        # add right click event
+        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.open_menu)
+
+    def open_menu(self, position):
+        menu = QMenu(self)
+        edit_action = menu.addAction("Edit")
+        build_action = menu.addAction("Build")
+        delete_action = menu.addAction("Delete")
+        mirror_action = menu.addAction("mirror")
+
+        # 连接每个菜单项到对应的槽函数
+        edit_action.triggered.connect(self.skeleton_group.edit)
+        build_action.triggered.connect(self.skeleton_group.build)
+        delete_action.triggered.connect(self.skeleton_group.delete)
+
+        menu.exec_(self.mapToGlobal(position))
+
+    def perform_action(self, action_name):
+        print(f"{action_name} action triggered")
+
+
+class MuscleCreateSubWindow(QDialog):
+    def __init__(self, parent=None):
+        super(MuscleCreateSubWindow, self).__init__(parent)
+        self.setWindowTitle("Create Muscle Group")
+        self.setGeometry(300, 300, 200, 150)
+
+        self.createWidgets()
+        self.createLayout()
+        self.createConnections()
+
+    def createWidgets(self):
+        self.mainLabel = QLabel("Select Layout Type:")
+        self.mainCmb = QComboBox()
+        self.mainCmb.addItems(["Trapezius", "Lats", "Deltoid", "Arm", "Pectoralis"])
+        self.buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+
+        self.trapMuscleNameLe = QLineEdit()
+        self.trapBack2JointLe = QLineEdit()
+        self.trapClavicleJointLe = QLineEdit()
+        self.trapAcromionJointLe = QLineEdit()
+
+        self.LatsMuscleNameLe = QLineEdit()
+        self.LatsBack1JointLe = QLineEdit()
+        self.LatsTwist2JointLe = QLineEdit()
+        self.LatsScapulaJointLe = QLineEdit()
+        self.LatsTrapCJointLe = QLineEdit()
+
+        self.DeltoidMuscleNameLe = QLineEdit()
+        self.DeltoidClavicleJointLe = QLineEdit()
+        self.DeltoidUpperArmJointLe = QLineEdit()
+        self.DeltoidTwist1JointLe = QLineEdit()
+        self.DeltoidTwist2JointLe = QLineEdit()
+        self.DeltoidAcromionJointLe = QLineEdit()
+
+        self.ArmMuscleNameLe = QLineEdit()
+        self.ArmUppearmTwistJointLe = QLineEdit()
+        self.ArmLowerarmTwistJointLe = QLineEdit()
+        self.ArmTwistBaseJointLe = QLineEdit()
+        self.ArmTwistValueJointLe = QLineEdit()
+        self.ArmAcromionJointLe = QLineEdit()
+
+        self.PectoralisMuscleNameLe = QLineEdit()
+        self.PectoralisBack3JointLe = QLineEdit()
+        self.PectoralisClavicleJointLe = QLineEdit()
+        self.PectoralisUpperarmJointLe = QLineEdit()
+        self.PectoralisTwist2JointLe = QLineEdit()
+
+    def createLayout(self):
+        self.trapWidget = QWidget()
+        self.trapFormLayout = QFormLayout()
+        self.trapFormLayout.addRow("Muscle Name:", self.trapMuscleNameLe)
+        self.trapFormLayout.addRow("Back2 Joint:", self.trapBack2JointLe)
+        self.trapFormLayout.addRow("Clavicle Joint:", self.trapClavicleJointLe)
+        self.trapFormLayout.addRow("Acromion Joint:", self.trapAcromionJointLe)
+        self.trapWidget.setLayout(self.trapFormLayout)
+
+        self.LatsWidget = QWidget()
+        self.LatsFormLayout = QFormLayout()
+        self.LatsFormLayout.addRow("Muscle Name:", self.LatsMuscleNameLe)
+        self.LatsFormLayout.addRow("Back1 Joint:", self.LatsBack1JointLe)
+        self.LatsFormLayout.addRow("UpperArm Twist2 Joint:", self.LatsTwist2JointLe)
+        self.LatsFormLayout.addRow("Scapula Joint:", self.LatsScapulaJointLe)
+        self.LatsFormLayout.addRow("TrapC Joint:", self.LatsTrapCJointLe)
+        self.LatsWidget.setLayout(self.LatsFormLayout)
+
+        self.DeltoidWidget = QWidget()
+        self.DeltoidFormLayout = QFormLayout()
+        self.DeltoidFormLayout.addRow("Muscle Name:", self.DeltoidMuscleNameLe)
+        self.DeltoidFormLayout.addRow("Clavicle Joint:", self.DeltoidClavicleJointLe)
+        self.DeltoidFormLayout.addRow("UpperArm Joint:", self.DeltoidUpperArmJointLe)
+        self.DeltoidFormLayout.addRow("UpperArm Twist1 Joint:", self.DeltoidTwist1JointLe)
+        self.DeltoidFormLayout.addRow("UpperArm Twist2 Joint:", self.DeltoidTwist2JointLe)
+        self.DeltoidFormLayout.addRow("Acromion Joint:", self.DeltoidAcromionJointLe)
+        self.DeltoidWidget.setLayout(self.DeltoidFormLayout)
+
+        self.ArmWidget = QWidget()
+        self.ArmFormLayout = QFormLayout()
+        self.ArmFormLayout.addRow("Muscle Name:", self.ArmMuscleNameLe)
+        self.ArmFormLayout.addRow("UpperArm Twist1 Joint:", self.ArmUppearmTwistJointLe)
+        self.ArmFormLayout.addRow("LowerArm Twist1 Joint:", self.ArmLowerarmTwistJointLe)
+        self.ArmFormLayout.addRow("UpperArm TwistBase Joint:", self.ArmTwistBaseJointLe)
+        self.ArmFormLayout.addRow("UpperArm TwistValue Joint:", self.ArmTwistValueJointLe)
+        self.ArmFormLayout.addRow("Acromion Joint:", self.ArmAcromionJointLe)
+        self.ArmWidget.setLayout(self.ArmFormLayout)
+
+        self.PectoralisWidget = QWidget()
+        self.PectoralisFormLayout = QFormLayout()
+        self.PectoralisFormLayout.addRow("Muscle Name:", self.PectoralisMuscleNameLe)
+        self.PectoralisFormLayout.addRow("Back3 Joint:", self.PectoralisBack3JointLe)
+        self.PectoralisFormLayout.addRow("Clavicle Joint:", self.PectoralisClavicleJointLe)
+        self.PectoralisFormLayout.addRow("UpperArm Joint:", self.PectoralisUpperarmJointLe)
+        self.PectoralisFormLayout.addRow("UpperArm Twist2 Joint:", self.PectoralisTwist2JointLe)
+        self.PectoralisWidget.setLayout(self.PectoralisFormLayout)
+
+        self.stackedWidget = QStackedWidget()
+        self.stackedWidget.addWidget(self.trapWidget)
+        self.stackedWidget.addWidget(self.LatsWidget)
+        self.stackedWidget.addWidget(self.DeltoidWidget)
+        self.stackedWidget.addWidget(self.ArmWidget)
+        self.stackedWidget.addWidget(self.PectoralisWidget)
+
+        self.mainLayout = QVBoxLayout(self)
+        self.mainLayout.addWidget(self.mainLabel)
+        self.mainLayout.addWidget(self.mainCmb)
+        self.mainLayout.addWidget(self.stackedWidget)
+        self.mainLayout.addWidget(self.buttons)
+
+        self.setLayout(self.mainLayout)
+
+    def createConnections(self):
+        self.buttons.accepted.connect(self.accept)
+        self.buttons.rejected.connect(self.reject)
+        self.mainCmb.currentIndexChanged.connect(self.stackedWidget.setCurrentIndex)
+
+    def getInputText(self, formLayout):
+        texts = []
+        for i in range(formLayout.count()):
+            # 获取每一行的Widget
+            labelItem = formLayout.itemAt(i, QFormLayout.LabelRole)
+            fieldItem = formLayout.itemAt(i, QFormLayout.FieldRole)
+
+            if labelItem and fieldItem:
+                labelWidget = labelItem.widget()
+                fieldWidget = fieldItem.widget()
+
+            formatted_text = fieldWidget.text()
+            texts.append(formatted_text)
+
+        return texts
+
+    def getSelectedMuscleType(self):
+        return self.mainCmb.currentText()
+
+    def getSelectedMuscleInputs(self):
+        currentWidget = self.stackedWidget.currentWidget()
+        currentLayout = currentWidget.layout()
+        inputTexts = self.getInputText(currentLayout)
+
+        return inputTexts
+
+
 class MuscleGroupWindow(QDialog):
     def __init__(self, parent=None):
         super(MuscleGroupWindow, self).__init__(parent)
 
         mainLayout = QVBoxLayout(self)
 
-        self.list_widget = QListWidget()
-        mainLayout.addWidget(self.list_widget)
+        self.listWidget = QListWidget()
+        mainLayout.addWidget(self.listWidget)
 
-        # 创建布局
-        horizontal_layout = QHBoxLayout()
-        horizontal_layout.addWidget(QPushButton("Button 1"))
-        horizontal_layout.addWidget(QPushButton("Button 2"))
-
-        grid_layout = QVBoxLayout()
-        grid_layout.addWidget(QPushButton("Button 1"))
-        grid_layout.addWidget(QPushButton("Button 2"))
-        grid_layout.addWidget(QPushButton("Button 3"))
-
-        # 添加带有 GroupBox 的布局到 QListWidget
-        self.addLayoutItem(horizontal_layout, "Horizontal Layout Group")
-        self.addLayoutItem(grid_layout, "Grid Layout Group")
+        self.addLayoutBtn = QPushButton("Add Layout")
+        self.addLayoutBtn.clicked.connect(self.openSubWindow)
+        mainLayout.addWidget(self.addLayoutBtn)
 
         self.setLayout(mainLayout)
 
-    def addLayoutItem(self, layout, title):
-        list_item_widget = LayoutWidget(layout, title)
-        list_item = QListWidgetItem(self.list_widget)
-        list_item.setSizeHint(list_item_widget.sizeHint())
-        self.list_widget.addItem(list_item)
-        self.list_widget.setItemWidget(list_item, list_item_widget)
+    def openSubWindow(self):
+        self.subWindow = MuscleCreateSubWindow(self)
+        self.subWindow.show()
+        self.subWindow.accepted.connect(self.getSubWindowAccept)
+
+    def getSubWindowAccept(self):
+        selectedMuscleType = self.subWindow.getSelectedMuscleType()
+        dataInputs = self.subWindow.getSelectedMuscleInputs()
+        self.addLayoutItem(selectedMuscleType, dataInputs)
+
+    def addLayoutItem(self, selectedMuscleType, dataInputs):
+        listItemWidget = LayoutWidget(selectedMuscleType, dataInputs)
+        listItem = QListWidgetItem(self.listWidget)
+        listItem.setSizeHint(listItemWidget.sizeHint())
+        self.listWidget.addItem(listItem)
+        self.listWidget.setItemWidget(listItem, listItemWidget)
+
 
 class MainWindow(QDialog):
     def __init__(self, parent=mayaMainWindow()):
@@ -494,6 +646,8 @@ class MainWindow(QDialog):
 
         self.createWidgets()
         self.createLayout()
+
+        self.initUI()
 
     def createWidgets(self):
         self.tabWidget = QTabWidget()
@@ -508,6 +662,23 @@ class MainWindow(QDialog):
         self.mainLayout.setContentsMargins(0, 0, 0, 0)
         self.mainLayout.addWidget(self.tabWidget)
         self.setLayout(self.mainLayout)
+
+    def initUI(self):
+        # 加载之前保存的状态或布局
+        self.loadState()
+
+    def closeEvent(self, event):
+        # 隐藏窗口而不是关闭
+        self.hide()
+        event.ignore()
+
+    def loadState(self):
+        # 从文件或其他地方加载之前保存的状态
+        pass
+
+    def saveState(self):
+        # 将当前状态保存到文件或其他地方
+        pass
 
 
 
