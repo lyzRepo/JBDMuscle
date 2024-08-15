@@ -10,8 +10,10 @@ except ImportError:
     from shiboken6 import wrapInstance
 
 import maya.OpenMayaUI as omui
+import maya.cmds as cm
 from . import helper_joints
 from . import muscle_group
+import os
 
 
 def mayaMainWindow():
@@ -23,13 +25,13 @@ def createMuscleGroup(groupType, inputs):
     if groupType == "Trapezius":
         return muscle_group.TrapGroup(inputs[0], inputs[1], inputs[2], inputs[3])
     elif groupType == "Lats":
-        return muscle_group.LatsGroup(*inputs)
+        return muscle_group.LatsGroup(inputs[0], inputs[1], inputs[2], inputs[3], inputs[4])
     elif groupType == "Deltoid":
-        return muscle_group.DeltoidGroup(*inputs)
+        return muscle_group.DeltoidGroup(inputs[0], inputs[1], inputs[2], inputs[3], inputs[4], inputs[5])
     elif groupType == "Arm":
-        return muscle_group.ArmMuscleGroup(*inputs)
+        return muscle_group.ArmMuscleGroup(inputs[0], inputs[1], inputs[2], inputs[3], inputs[4], inputs[5])
     elif groupType == "Pectoralis":
-        return muscle_group.PectoralisGroup(*inputs)
+        return muscle_group.PectoralisGroup(inputs[0], inputs[1], inputs[2], inputs[3], inputs[4])
 
 
 class CollapsibleHeader(QWidget):
@@ -438,13 +440,43 @@ class LayoutWidget(QWidget):
         groupBox = QGroupBox(groupType)
         groupBoxLayout = QVBoxLayout(groupBox)
         mainLayout.addWidget(groupBox)
+
+        self.treeWidget = QTreeWidget()
+        self.treeWidget.setHeaderLabels(["Skeleton"])
+        groupBoxLayout.addWidget(self.treeWidget)
+
         self.setLayout(mainLayout)
         self.skeleton_group = createMuscleGroup(groupType, inputs)
         self.skeleton_group.add()
 
+        self.populateTreeWidget()
+
         # add right click event
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.open_menu)
+
+        self.treeWidget.itemSelectionChanged.connect(self.onItemSelectionChanged)
+
+    def populateTreeWidget(self):
+        icon_path = QPixmap(":kinJoint.png")
+        bone_icon = QIcon(icon_path)
+
+        for unit in self.skeleton_group.muscleUnitGroup:
+            muscleOrigin = unit.muscleOrigin
+            muscleInsertion = unit.muscleInsertion
+            Jomuscle = unit.JOmuscle
+
+            origin_item = QTreeWidgetItem(self.treeWidget, [muscleOrigin])
+            origin_item.setData(0, Qt.UserRole, muscleOrigin)
+            origin_item.setIcon(0, bone_icon)
+
+            insertion_item = QTreeWidgetItem(self.treeWidget, [muscleInsertion])
+            insertion_item.setData(0, Qt.UserRole, muscleInsertion)
+            insertion_item.setIcon(0, bone_icon)
+
+            jomuscle_item = QTreeWidgetItem(self.treeWidget, [Jomuscle])
+            jomuscle_item.setData(0, Qt.UserRole, Jomuscle)
+            jomuscle_item.setIcon(0, bone_icon)
 
     def open_menu(self, position):
         menu = QMenu(self)
@@ -460,8 +492,13 @@ class LayoutWidget(QWidget):
 
         menu.exec_(self.mapToGlobal(position))
 
-    def perform_action(self, action_name):
-        print(f"{action_name} action triggered")
+    def onItemSelectionChanged(self):
+        cm.select(clear=True)
+        selected_items = self.treeWidget.selectedItems()
+        if selected_items:
+            selected_item = selected_items[0]
+            joint = selected_item.data(0, Qt.UserRole)
+            cm.select(joint)
 
 
 class MuscleCreateSubWindow(QDialog):
@@ -647,11 +684,8 @@ class MainWindow(QDialog):
         self.createWidgets()
         self.createLayout()
 
-        self.initUI()
-
     def createWidgets(self):
         self.tabWidget = QTabWidget()
-
         self.helpJointPage = HelperJointWindow()
         self.muscleGroupPage = MuscleGroupWindow()
         self.tabWidget.addTab(self.helpJointPage, "Helper Joints")
@@ -663,22 +697,6 @@ class MainWindow(QDialog):
         self.mainLayout.addWidget(self.tabWidget)
         self.setLayout(self.mainLayout)
 
-    def initUI(self):
-        # 加载之前保存的状态或布局
-        self.loadState()
-
-    def closeEvent(self, event):
-        # 隐藏窗口而不是关闭
-        self.hide()
-        event.ignore()
-
-    def loadState(self):
-        # 从文件或其他地方加载之前保存的状态
-        pass
-
-    def saveState(self):
-        # 将当前状态保存到文件或其他地方
-        pass
 
 
 
