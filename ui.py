@@ -13,7 +13,6 @@ import maya.OpenMayaUI as omui
 import maya.cmds as cm
 from . import helper_joints
 from . import muscle_group
-import os
 
 
 def mayaMainWindow():
@@ -433,22 +432,32 @@ class HelperJointWindow(QDialog):
         mainLayout.addWidget(self.bodyScrollArea)
 
 
-class LayoutWidget(QWidget):
-    def __init__(self, groupType, inputs, parent=None):
-        super(LayoutWidget, self).__init__(parent)
+class MuscleCreateWidget(QWidget):
+    def __init__(self, listItem, listWidget, create=None, mirror=None, rebuild=None,
+                 muscleUnit=None, groupType=None, inputs=None, parent=None):
+
+        super(MuscleCreateWidget, self).__init__(parent)
+        self.parentWidget = listWidget
+        self.listItem = listItem
+
+        if create:
+            self.skeleton_group = createMuscleGroup(groupType, inputs)
+            self.skeleton_group.add()
+        if mirror:
+            self.skeleton_group = muscleUnit.mirror()
+        if rebuild:
+            self.skeleton_group = muscleUnit
+
         mainLayout = QVBoxLayout()
-        groupBox = QGroupBox(groupType)
+        groupBox = QGroupBox(self.skeleton_group.muscleName)
         groupBoxLayout = QVBoxLayout(groupBox)
         mainLayout.addWidget(groupBox)
+        self.setLayout(mainLayout)
 
         self.treeWidget = QTreeWidget()
-        self.treeWidget.setHeaderLabels(["Skeleton"])
+        self.treeWidget.setFixedHeight(100)
+        self.treeWidget.setHeaderLabels(["Muscle Units"])
         groupBoxLayout.addWidget(self.treeWidget)
-
-        self.setLayout(mainLayout)
-        self.skeleton_group = createMuscleGroup(groupType, inputs)
-        self.skeleton_group.add()
-
         self.populateTreeWidget()
 
         # add right click event
@@ -456,25 +465,34 @@ class LayoutWidget(QWidget):
         self.customContextMenuRequested.connect(self.open_menu)
 
         self.treeWidget.itemSelectionChanged.connect(self.onItemSelectionChanged)
+        self.treeWidget.itemDoubleClicked.connect(self.onItemDoubleClicked)
 
     def populateTreeWidget(self):
         icon_path = QPixmap(":kinJoint.png")
         bone_icon = QIcon(icon_path)
 
         for unit in self.skeleton_group.muscleUnitGroup:
+            muscleGroup = unit.muscleName
             muscleOrigin = unit.muscleOrigin
             muscleInsertion = unit.muscleInsertion
+            muscleOffset = unit.muscleOffset
             Jomuscle = unit.JOmuscle
 
-            origin_item = QTreeWidgetItem(self.treeWidget, [muscleOrigin])
+            muscleGroup = QTreeWidgetItem(self.treeWidget, [muscleGroup])
+
+            origin_item = QTreeWidgetItem(muscleGroup, [muscleOrigin])
             origin_item.setData(0, Qt.UserRole, muscleOrigin)
             origin_item.setIcon(0, bone_icon)
 
-            insertion_item = QTreeWidgetItem(self.treeWidget, [muscleInsertion])
+            insertion_item = QTreeWidgetItem(muscleGroup, [muscleInsertion])
             insertion_item.setData(0, Qt.UserRole, muscleInsertion)
             insertion_item.setIcon(0, bone_icon)
 
-            jomuscle_item = QTreeWidgetItem(self.treeWidget, [Jomuscle])
+            offset_item = QTreeWidgetItem(muscleGroup, [muscleOffset])
+            offset_item.setData(0, Qt.UserRole, muscleOffset)
+            offset_item.setIcon(0, bone_icon)
+
+            jomuscle_item = QTreeWidgetItem(muscleGroup, [Jomuscle])
             jomuscle_item.setData(0, Qt.UserRole, Jomuscle)
             jomuscle_item.setIcon(0, bone_icon)
 
@@ -483,14 +501,19 @@ class LayoutWidget(QWidget):
         edit_action = menu.addAction("Edit")
         build_action = menu.addAction("Build")
         delete_action = menu.addAction("Delete")
-        mirror_action = menu.addAction("mirror")
 
-        # 连接每个菜单项到对应的槽函数
         edit_action.triggered.connect(self.skeleton_group.edit)
         build_action.triggered.connect(self.skeleton_group.build)
-        delete_action.triggered.connect(self.skeleton_group.delete)
+        delete_action.triggered.connect(self.deleteItem)
 
         menu.exec_(self.mapToGlobal(position))
+
+    def deleteItem(self):
+        self.skeleton_group.delete()
+        if self.parentWidget and self.listItem:
+            row = self.parentWidget.row(self.listItem)
+            self.parentWidget.takeItem(row)
+        self.deleteLater()
 
     def onItemSelectionChanged(self):
         cm.select(clear=True)
@@ -499,6 +522,11 @@ class LayoutWidget(QWidget):
             selected_item = selected_items[0]
             joint = selected_item.data(0, Qt.UserRole)
             cm.select(joint)
+
+    def onItemDoubleClicked(self, item):  # 添加处理双击事件的方法
+        joint = item.data(0, Qt.UserRole)
+        cm.select(joint)
+        cm.GraphEditor()
 
 
 class MuscleCreateSubWindow(QDialog):
@@ -642,25 +670,157 @@ class MuscleCreateSubWindow(QDialog):
         return inputTexts
 
 
+class MuscleMirrorSubWindow(QDialog):
+    def __init__(self, parent=None):
+        super(MuscleMirrorSubWindow, self).__init__(parent)
+        self.setWindowTitle("Mirror")
+        self.setGeometry(300, 300, 200, 150)
+
+        mainLayout = QVBoxLayout()
+
+        self.muscleName = QLineEdit()
+        self.axisCBX = QComboBox()
+        self.axisCBX.addItems(["x", "y", "z"])
+        self.sideCBX = QComboBox()
+        self.sideCBX.addItems(["L", "R"])
+
+        self.buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+
+        self.formLayout = QFormLayout()
+        self.formLayout.addRow("Name", self.muscleName)
+        self.formLayout.addRow("Axis", self.axisCBX)
+        self.formLayout.addRow("Side", self.sideCBX)
+        mainLayout.addLayout(self.formLayout)
+        mainLayout.addWidget(self.buttons)
+
+        self.setLayout(mainLayout)
+
+        self.createConnections()
+
+    def createConnections(self):
+        self.buttons.accepted.connect(self.accept)
+        self.buttons.rejected.connect(self.reject)
+
+    def getMirrorInputs(self):
+        return([self.muscleName.text(), self.axisCBX.currentText(), self.sideCBX.currentText()])
+
+
 class MuscleGroupWindow(QDialog):
     def __init__(self, parent=None):
         super(MuscleGroupWindow, self).__init__(parent)
 
-        mainLayout = QVBoxLayout(self)
+        self.createWidgets()
+        self.createLayout()
+        self.createConnections()
 
+    def createWidgets(self):
         self.listWidget = QListWidget()
+
+        self.addMuscleBtn = QPushButton("Add Muscle Group")
+        self.mirrorBtn = QPushButton("Mirror")
+
+        self.fileLabel = QLabel("File Path:")
+        self.filePathLe = QLineEdit()
+        self.selectPathBtn = QPushButton()
+        self.selectPathBtn.setIcon(QIcon(":fileOpen.png"))
+
+        self.importFileBtn = QPushButton("Import")
+        self.exportFileBtn = QPushButton("Export")
+
+    def createLayout(self):
+        self.buttonHLO = QHBoxLayout()
+        self.buttonHLO.addWidget(self.addMuscleBtn)
+        self.buttonHLO.addWidget(self.mirrorBtn)
+
+        self.fileLayout = QHBoxLayout()
+        self.fileLayout.addWidget(self.fileLabel)
+        self.fileLayout.addWidget(self.filePathLe)
+        self.fileLayout.addWidget(self.selectPathBtn)
+
+        self.fileSaveLayout = QHBoxLayout()
+        self.fileSaveLayout.addStretch()
+        self.fileSaveLayout.addWidget(self.importFileBtn)
+        self.fileSaveLayout.addWidget(self.exportFileBtn)
+
+        mainLayout = QVBoxLayout()
         mainLayout.addWidget(self.listWidget)
-
-        self.addLayoutBtn = QPushButton("Add Layout")
-        self.addLayoutBtn.clicked.connect(self.openSubWindow)
-        mainLayout.addWidget(self.addLayoutBtn)
-
+        mainLayout.addLayout(self.buttonHLO)
+        mainLayout.addLayout(self.fileLayout)
+        mainLayout.addLayout(self.fileSaveLayout)
         self.setLayout(mainLayout)
+
+    def createConnections(self):
+        self.addMuscleBtn.clicked.connect(self.openSubWindow)
+        self.mirrorBtn.clicked.connect(self.openMirrorWindow)
+        self.selectPathBtn.clicked.connect(self.setFilePath)
+        self.exportFileBtn.clicked.connect(self.openFilfExportWindow)
+        self.importFileBtn.clicked.connect(self.openFileImportWindow)
+
+    def setFilePath(self):
+        filePath = self.filePathLe.text()
+        if not filePath:
+            filePath = cm.internalVar(userAppDir=True)
+
+        filePath = QFileDialog.getExistingDirectory(self, "Select Directory", filePath)
+        if filePath:
+            self.filePathLe.setText(filePath)
+
+    def openFilfExportWindow(self):
+        filePath = self.filePathLe.text()
+        if not filePath:
+            filePath = cm.internalVar(userAppDir=True)
+
+        muscleList = []
+        filePath, _ = QFileDialog.getSaveFileName(self, "Save File As", filePath, "JSON Files (*.json)")
+        for i in range(self.listWidget.count()):
+            listItem = self.listWidget.item(i)
+            muscleWidget = self.listWidget.itemWidget(listItem)
+            muscleList.append(muscleWidget.skeleton_group)
+
+        muscle_group.exportMuscles(filePath, *muscleList)
+
+    def openFileImportWindow(self):
+        filePath = self.filePathLe.text()
+        if not filePath:
+            filePath = cm.internalVar(userAppDir=True)
+
+        filePath, self.selectedFilter = QFileDialog.getOpenFileName(self, "Select File", filePath)
+        muscleInstances = muscle_group.importMuscles(filePath)
+        self.reloadMuscleWidgets(muscleInstances)
+
+    def reloadMuscleWidgets(self, muscleInstances):
+        for muscleUnit in muscleInstances:
+            listItem = QListWidgetItem(self.listWidget)
+            listItemWidget = MuscleCreateWidget(rebuild=True, muscleUnit=muscleUnit,
+                                                listItem=listItem, listWidget=self.listWidget)
+            listItem.setSizeHint(listItemWidget.sizeHint())
+
+            self.listWidget.addItem(listItem)
+            self.listWidget.setItemWidget(listItem, listItemWidget)
+
 
     def openSubWindow(self):
         self.subWindow = MuscleCreateSubWindow(self)
         self.subWindow.show()
         self.subWindow.accepted.connect(self.getSubWindowAccept)
+
+    def openMirrorWindow(self):
+        self.mirrorWindow = MuscleMirrorSubWindow(self)
+        self.mirrorWindow.show()
+        self.mirrorWindow.accepted.connect(self.getMirrorWindowAccept)
+
+    def getMirrorWindowAccept(self):
+        selectedItems = self.listWidget.selectedItems()
+        if not selectedItems:
+            return
+
+        selectedItem = selectedItems[0]
+        listItemWidget = self.listWidget.itemWidget(selectedItem)
+        if not listItemWidget:
+            return
+
+        mirrorInputs = self.mirrorWindow.getMirrorInputs()
+        self.addMirrorItem(listItemWidget.skeleton_group, mirrorInputs)
 
     def getSubWindowAccept(self):
         selectedMuscleType = self.subWindow.getSelectedMuscleType()
@@ -668,9 +828,20 @@ class MuscleGroupWindow(QDialog):
         self.addLayoutItem(selectedMuscleType, dataInputs)
 
     def addLayoutItem(self, selectedMuscleType, dataInputs):
-        listItemWidget = LayoutWidget(selectedMuscleType, dataInputs)
         listItem = QListWidgetItem(self.listWidget)
+        listItemWidget = MuscleCreateWidget(create=True, groupType=selectedMuscleType, inputs=dataInputs,
+                                            listItem=listItem, listWidget=self.listWidget)
         listItem.setSizeHint(listItemWidget.sizeHint())
+
+        self.listWidget.addItem(listItem)
+        self.listWidget.setItemWidget(listItem, listItemWidget)
+
+    def addMirrorItem(self, muscleUnit, dataInputs):
+        listItem = QListWidgetItem(self.listWidget)
+        listItemWidget = MuscleCreateWidget(mirror=True, muscleUnit=muscleUnit, inputs=dataInputs,
+                                            listItem=listItem, listWidget=self.listWidget)
+        listItem.setSizeHint(listItemWidget.sizeHint())
+
         self.listWidget.addItem(listItem)
         self.listWidget.setItemWidget(listItem, listItemWidget)
 

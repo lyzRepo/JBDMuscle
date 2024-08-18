@@ -65,8 +65,8 @@ def mirrorMuscleGroup(muscleGrp, groupClass, muscleName, mirrorAxis="x", side="L
     return mirrorInstance
 
 
-def exportMuscles(fileName, *args):
-    filePath = os.path.abspath(__file__ + "/../data/{0}.json".format(fileName))
+def exportMuscles(filePath, *args):
+    filePath = filePath
 
     muscleData = {}
     for group in args:
@@ -76,8 +76,8 @@ def exportMuscles(fileName, *args):
         json.dump(muscleData, fp, ensure_ascii=False, indent=4, separators=(",", ":"))
 
 
-def importMuscles(fileName):
-    filePath = os.path.abspath(__file__ + "/../data/{0}.json".format(fileName))
+def importMuscles(filePath):
+    filePath = filePath
     muscleInstancesGrp = []
 
     with open(filePath) as fp:
