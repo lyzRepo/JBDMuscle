@@ -798,7 +798,6 @@ class MuscleGroupWindow(QDialog):
             self.listWidget.addItem(listItem)
             self.listWidget.setItemWidget(listItem, listItemWidget)
 
-
     def openSubWindow(self):
         self.subWindow = MuscleCreateSubWindow(self)
         self.subWindow.show()
@@ -846,6 +845,82 @@ class MuscleGroupWindow(QDialog):
         self.listWidget.setItemWidget(listItem, listItemWidget)
 
 
+class CustomButton(QPushButton):
+    def __init__(self, parent=None):
+        super(CustomButton, self).__init__(parent)
+        self.setText("")
+        self.setStyleSheet("""
+           QPushButton {
+                border-radius: 25px;       /* 圆形按钮的半径 */
+                padding: 0px;               /* 内边距 */
+                color: white;               /* 字体颜色 */
+                font-size: 16px;            /* 字体大小 */
+                min-width: 50px;           /* 最小宽度 */
+                min-height: 50px;          /* 最小高度 */
+                max-width: 50px;           /* 最大宽度 */
+                max-height: 50px;          /* 最大高度 */
+                text-align: center;         /* 文字居中对齐 */
+                line-height: 100px;         /* 文字行高 */
+            }
+            QPushButton:hover {
+                background-color: #45a049; /* 悬停时背景颜色 */
+            }
+            QPushButton:pressed {
+                background-color: #367c39; /* 按下时背景颜色 */
+            }
+        """)
+        icon_path = ":/proximityWrap.png"  # Ensure the icon path is correct
+        pixmap = QPixmap(icon_path)
+        pixmap = pixmap.scaled(50, 50, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        self.setIcon(QIcon(pixmap))
+        self.setIconSize(QSize(120, 120))
+
+
+class ImageBackgroundWidget(QWidget):
+    def __init__(self, image_path, parent=None):
+        super(ImageBackgroundWidget, self).__init__(parent)
+        self.setFixedSize(372, 1025)
+        self.setGeometry(100, 100, 372, 1025)
+        self.image_path = image_path
+
+    def set_image(self, image_path):
+        """Update the background image."""
+        self.image_path = image_path
+        self.update()  # Request a repaint to apply the new image
+
+    def paintEvent(self, event):
+        """Override the paint event to draw the background image."""
+        painter = QPainter(self)
+        pixmap = QPixmap(self.image_path)
+
+        # Scale the pixmap to fit the widget's size
+        scaled_pixmap = pixmap.scaled(self.size(), Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+        painter.drawPixmap(self.rect(), scaled_pixmap)
+
+
+
+class AnimationJointWindow(QWidget):
+    def __init__(self, parent=None):
+        super(AnimationJointWindow, self).__init__(parent)
+        image_path = 'C:/Users/zenzl/Documents/maya/scripts/JBDMuscle/data/qwe.png'
+        background_widget = ImageBackgroundWidget(image_path)
+
+        # Create buttons
+        aa = CustomButton()
+
+        # Create a layout and add buttons to it
+        layout = QVBoxLayout()
+        layout.addWidget(aa)
+        # Set the layout to the background widget
+        background_widget.setLayout(layout)
+
+        # Set the background widget as the main layout for the dialog
+        main_layout = QVBoxLayout()
+        main_layout.addWidget(background_widget)
+        self.setLayout(main_layout)
+
+
+
 class MainWindow(QDialog):
     def __init__(self, parent=mayaMainWindow()):
         super(MainWindow, self).__init__(parent)
@@ -857,8 +932,10 @@ class MainWindow(QDialog):
 
     def createWidgets(self):
         self.tabWidget = QTabWidget()
+        self.animationJointPage = AnimationJointWindow()
         self.helpJointPage = HelperJointWindow()
         self.muscleGroupPage = MuscleGroupWindow()
+        self.tabWidget.addTab(self.animationJointPage, "Animation Joint")
         self.tabWidget.addTab(self.helpJointPage, "Helper Joints")
         self.tabWidget.addTab(self.muscleGroupPage, "Muscle Group")
 
